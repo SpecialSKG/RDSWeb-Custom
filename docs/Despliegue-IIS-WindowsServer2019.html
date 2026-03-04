@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RDWeb-Moderno — Guía de Despliegue en IIS + Windows Server 2019</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent: #5b52e8;
+    --accent-light: #ede9fe;
+    --text: #1a1d2e;
+    --text-secondary: #4a5568;
+    --border: #e2e8f0;
+    --bg: #f8fafc;
+    --code-bg: #1e1e2e;
+    --code-text: #cdd6f4;
+    --warning: #f59e0b;
+    --warning-bg: #fffbeb;
+    --success: #059669;
+    --success-bg: #ecfdf5;
+    --danger: #dc2626;
+    --note-bg: #eff6ff;
+    --note-border: #3b82f6;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+    background: white;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  /* ─── PORTADA ─── */
+  .cover {
+    min-height: 260px;
+    background: linear-gradient(135deg, #1a1d3a 0%, #2d2b69 50%, #5b52e8 100%);
+    border-radius: 16px;
+    padding: 3rem;
+    color: white;
+    margin-bottom: 3rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    width: 300px; height: 300px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    top: -80px; right: -80px;
+  }
+  .cover-logo { font-size: 2.5rem; margin-bottom: 0.5rem; }
+  .cover h1 { font-size: 1.75rem; font-weight: 700; line-height: 1.3; }
+  .cover .subtitle { font-size: 0.9rem; opacity: 0.75; margin-top: 0.5rem; }
+  .cover .meta { margin-top: 2rem; display: flex; gap: 2rem; font-size: 0.8rem; opacity: 0.65; }
+  .cover .meta span::before { margin-right: 0.3rem; }
+
+  /* ─── ÍNDICE ─── */
+  .toc { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 3rem; }
+  .toc h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-secondary); margin-bottom: 1rem; }
+  .toc ol { padding-left: 1.2rem; }
+  .toc li { margin: 0.35rem 0; }
+  .toc a { color: var(--accent); text-decoration: none; font-size: 0.875rem; }
+  .toc a:hover { text-decoration: underline; }
+  .toc .sub { list-style: none; padding-left: 1rem; margin-top: 0.25rem; }
+  .toc .sub li::before { content: '•'; margin-right: 0.4rem; color: var(--accent); }
+
+  /* ─── SECCIONES ─── */
+  section { margin-bottom: 3rem; page-break-inside: avoid; }
+  .section-number {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px;
+    background: var(--accent); color: white;
+    border-radius: 8px; font-weight: 700; font-size: 0.875rem;
+    margin-right: 0.75rem; flex-shrink: 0;
+  }
+  h2 {
+    display: flex; align-items: center;
+    font-size: 1.2rem; font-weight: 700;
+    color: var(--text);
+    border-bottom: 2px solid var(--accent-light);
+    padding-bottom: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+  h3 { font-size: 0.95rem; font-weight: 600; color: var(--text); margin: 1.5rem 0 0.6rem; }
+  h4 { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin: 1rem 0 0.4rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  p { margin-bottom: 0.75rem; color: var(--text-secondary); }
+
+  /* ─── PASOS NUMERADOS ─── */
+  .steps { counter-reset: step; display: flex; flex-direction: column; gap: 1.25rem; }
+  .step {
+    display: flex; gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .step-num {
+    counter-increment: step;
+    display: flex; align-items: flex-start; justify-content: center;
+    width: 28px; height: 28px;
+    background: var(--accent); color: white;
+    border-radius: 50%; font-weight: 700; font-size: 0.8rem;
+    flex-shrink: 0; margin-top: 2px;
+  }
+  .step-num::before { content: counter(step); }
+  .step-body { flex: 1; }
+  .step-body strong { display: block; font-size: 0.9rem; margin-bottom: 0.35rem; }
+  .step-body p { margin: 0; font-size: 0.85rem; }
+
+  /* ─── CÓDIGO ─── */
+  pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    margin: 0.75rem 0;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8em;
+    background: var(--accent-light);
+    color: var(--accent);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+  .comment { color: #6c7086; }
+  .cmd { color: #a6e3a1; }
+  .str { color: #f9e2af; }
+  .kw { color: #cba6f7; }
+  .tag { color: #89b4fa; }
+  .val { color: #fab387; }
+
+  /* ─── ALERTAS ─── */
+  .alert {
+    display: flex; gap: 0.75rem; align-items: flex-start;
+    padding: 0.9rem 1.1rem;
+    border-radius: 10px;
+    margin: 1rem 0;
+    font-size: 0.875rem;
+  }
+  .alert-icon { font-size: 1.1rem; flex-shrink: 0; }
+  .alert.warning { background: var(--warning-bg); border-left: 4px solid var(--warning); }
+  .alert.success { background: var(--success-bg); border-left: 4px solid var(--success); }
+  .alert.note    { background: var(--note-bg);    border-left: 4px solid var(--note-border); }
+  .alert.danger  { background: #fef2f2;            border-left: 4px solid var(--danger); }
+  .alert strong  { display: block; margin-bottom: 0.2rem; }
+
+  /* ─── TABLA ─── */
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.85rem; }
+  th { background: var(--accent); color: white; padding: 0.6rem 1rem; text-align: left; font-weight: 600; }
+  th:first-child { border-radius: 8px 0 0 0; }
+  th:last-child  { border-radius: 0 8px 0 0; }
+  td { padding: 0.55rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--bg); }
+
+  /* ─── BADGE ─── */
+  .badge {
+    display: inline-block;
+    padding: 0.2em 0.6em;
+    border-radius: 5px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .badge-req  { background: #fef3c7; color: #92400e; }
+  .badge-opt  { background: #d1fae5; color: #065f46; }
+  .badge-sec  { background: #fee2e2; color: #991b1b; }
+
+  /* ─── ARQUITECTURA ─── */
+  .arch-diagram {
+    background: var(--code-bg);
+    color: #cdd6f4;
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 2;
+    text-align: center;
+    margin: 1rem 0;
+  }
+
+  /* ─── CHECKLIST ─── */
+  .checklist { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; margin: 0.75rem 0; }
+  .checklist li { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.875rem; color: var(--text-secondary); }
+  .checklist li::before { content: '☐'; color: var(--accent); font-weight: bold; flex-shrink: 0; }
+
+  /* ─── DIVIDER ─── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+  /* ─── FOOTER ─── */
+  footer {
+    text-align: center; color: var(--text-secondary);
+    font-size: 0.75rem; padding: 2rem 0 1rem;
+    border-top: 1px solid var(--border);
+    margin-top: 3rem;
+  }
+
+  /* ─── PRINT ─── */
+  @media print {
+    body { padding: 0; font-size: 12px; }
+    .cover { border-radius: 0; margin: 0 0 2rem; }
+    section { page-break-inside: avoid; }
+    h2 { page-break-after: avoid; }
+    pre { white-space: pre-wrap; word-break: break-all; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     PORTADA
+═══════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-logo">🖥️</div>
+  <h1>RDWeb-Moderno<br>Guía de Despliegue</h1>
+  <p class="subtitle">IIS + Windows Server 2019 · Node.js + Angular + Active Directory</p>
+  <div class="meta">
+    <span>📅 Versión 1.0 — Marzo 2025</span>
+    <span>🏢 Infraestructura Interna</span>
+    <span>⚠️ Documento Confidencial</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     ÍNDICE
+═══════════════════════════════════════════════ -->
+<div class="toc">
+  <h2>📋 Contenido</h2>
+  <ol>
+    <li><a href="#s1">Arquitectura general</a></li>
+    <li><a href="#s2">Requisitos previos del servidor</a>
+      <ul class="sub">
+        <li>Software a instalar</li>
+        <li>Puertos y Firewall</li>
+      </ul>
+    </li>
+    <li><a href="#s3">Preparación de Active Directory</a>
+      <ul class="sub">
+        <li>Crear cuenta de servicio</li>
+        <li>Obtener variables del dominio</li>
+      </ul>
+    </li>
+    <li><a href="#s4">Despliegue del backend Node.js</a>
+      <ul class="sub">
+        <li>Copiar y configurar archivos</li>
+        <li>Variables de entorno (.env)</li>
+        <li>Registrar como servicio con PM2</li>
+      </ul>
+    </li>
+    <li><a href="#s5">Compilar y desplegar el frontend Angular</a></li>
+    <li><a href="#s6">Configuración de IIS</a>
+      <ul class="sub">
+        <li>Crear el sitio web</li>
+        <li>Habilitar ARR / Reverse Proxy</li>
+        <li>web.config</li>
+      </ul>
+    </li>
+    <li><a href="#s7">Verificación final</a></li>
+    <li><a href="#s8">Resolución de problemas comunes</a></li>
+    <li><a href="#s9">Actualizar la aplicación</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SECCIÓN 1 — ARQUITECTURA
+═══════════════════════════════════════════════ -->
+<section id="s1">
+  <h2><span class="section-number">1</span> Arquitectura general</h2>
+
+  <div class="arch-diagram">
+    <span style="color:#cba6f7">Usuario (Navegador)</span><br>
+    │<br>
+    ▼<br>
+    <span style="color:#89b4fa">IIS :443 / :80</span>  &nbsp;←&nbsp; Certificado SSL<br>
+    ├─ <span style="color:#a6e3a1">/api/*</span>  →  <span style="color:#f9e2af">Node.js :3000</span>  (Reverse Proxy via ARR)<br>
+    └─ <span style="color:#a6e3a1">/*</span>  →  <span style="color:#f9e2af">Archivos Angular estáticos</span><br>
+    <br>
+    <span style="color:#f9e2af">Node.js :3000</span><br>
+    ├─ Autenticación  →  <span style="color:#cba6f7">Active Directory :389 (LDAP)</span><br>
+    └─ RemoteApps     →  <span style="color:#cba6f7">RD Connection Broker (WMI)</span><br>
+    <br>
+    <span style="color:#6c7086">RD Gateway / Session Hosts (sin cambios)</span>
+  </div>
+
+  <table>
+    <tr><th>Componente</th><th>Rol</th><th>Puerto</th></tr>
+    <tr><td>IIS</td><td>Servidor web + reverse proxy</td><td>80, 443</td></tr>
+    <tr><td>Node.js (Express)</td><td>API REST: auth, apps, RDP</td><td>3000 (interno)</td></tr>
+    <tr><td>Angular (estático)</td><td>SPA servida por IIS</td><td>—</td></tr>
+    <tr><td>Active Directory</td><td>Autenticación de usuarios</td><td>389 (LDAP)</td></tr>
+    <tr><td>RD Connection Broker</td><td>Lista de RemoteApps</td><td>WMI</td></tr>
+    <tr><td>RD Gateway</td><td>Tuneliza sesiones RDP</td><td>443</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SECCIÓN 2 — REQUISITOS PREVIOS
+═══════════════════════════════════════════════ -->
+<section id="s2">
+  <h2><span class="section-number">2</span> Requisitos previos del servidor</h2>
+
+  <p>Ejecutar todos los comandos en <strong>PowerShell como Administrador</strong> en el servidor de destino (Windows Server 2019).</p>
+
+  <h3>2.1 Instalar Node.js LTS</h3>
+  <p>Descargar el instalador MSI desde <code>https://nodejs.org/en/download</code> (versión LTS ≥ 20.x) e instalar con opciones por defecto.</p>
+  <pre><span class="comment"># Verificar instalación</span>
+<span class="cmd">node</span> --version   <span class="comment"># → v20.x.x o superior</span>
+<span class="cmd">npm</span>  --version   <span class="comment"># → 10.x o superior</span></pre>
+
+  <h3>2.2 Instalar IIS con los módulos necesarios</h3>
+  <pre><span class="cmd">Install-WindowsFeature</span> <span class="val">-Name</span> Web-Server, Web-Common-Http, Web-Static-Content, `
+  Web-Default-Doc, Web-Http-Errors, Web-Asp-Net45, `
+  Web-Http-Redirect, Web-Health, Web-Http-Logging, `
+  Web-Security, Web-Filtering, Web-Mgmt-Console `
+  <span class="val">-IncludeManagementTools</span></pre>
+
+  <h3>2.3 Instalar URL Rewrite Module</h3>
+  <p>Descargar desde <code>https://www.iis.net/downloads/microsoft/url-rewrite</code> y ejecutar el instalador MSI.</p>
+  <pre><span class="comment"># Verificar instalación desde PowerShell</span>
+<span class="cmd">Get-WebConfiguration</span> system.webServer/rewrite/rules <span class="val">-ErrorAction</span> SilentlyContinue
+<span class="comment"># No debe lanzar error si está instalado</span></pre>
+
+  <h3>2.4 Instalar Application Request Routing (ARR)</h3>
+  <p>Descargar desde <code>https://www.iis.net/downloads/microsoft/application-request-routing</code> e instalar el MSI.</p>
+  <pre><span class="comment"># Habilitar el proxy global de ARR (ejecutar UNA sola vez)</span>
+<span class="cmd">Import-Module</span> WebAdministration
+<span class="cmd">Set-WebConfigurationProperty</span> <span class="val">-pspath</span> <span class="str">'MACHINE/WEBROOT/APPHOST'</span> `
+  <span class="val">-filter</span> <span class="str">"system.webServer/proxy"</span> <span class="val">-name</span> <span class="str">"enabled"</span> <span class="val">-value</span> <span class="str">"True"</span></pre>
+
+  <h3>2.5 Instalar PM2 (gestor de procesos Node.js)</h3>
+  <pre><span class="cmd">npm</span> install <span class="val">-g</span> pm2
+<span class="cmd">npm</span> install <span class="val">-g</span> pm2-windows-startup
+<span class="cmd">pm2-startup</span> install    <span class="comment"># Registra PM2 como servicio de Windows</span></pre>
+
+  <h3>2.6 Instalar Angular CLI (solo para compilar)</h3>
+  <pre><span class="cmd">npm</span> install <span class="val">-g</span> @angular/cli</pre>
+
+  <h3>2.7 Puertos y Firewall</h3>
+  <table>
+    <tr><th>Puerto</th><th>Protocolo</th><th>Dirección</th><th>Propósito</th></tr>
+    <tr><td>80</td><td>TCP</td><td>Entrada</td><td>IIS HTTP (redirige a HTTPS)</td></tr>
+    <tr><td>443</td><td>TCP</td><td>Entrada</td><td>IIS HTTPS</td></tr>
+    <tr><td>3000</td><td>TCP</td><td>Local only</td><td>Node.js (no exponer externamente)</td></tr>
+    <tr><td>389</td><td>TCP</td><td>Salida → DC</td><td>LDAP a Active Directory</td></tr>
+    <tr><td>636</td><td>TCP</td><td>Salida → DC</td><td>LDAPS (recomendado producción)</td></tr>
+  </table>
+
+  <pre><span class="comment"># Verificar conectividad con el Domain Controller</span>
+<span class="cmd">Test-NetConnection</span> <span class="val">-ComputerName</span> dc01.lab-mh.local <span class="val">-Port</span> 389
+<span class="comment"># TcpTestSucceeded debe ser: True</span></pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SECCIÓN 3 — ACTIVE DIRECTORY
+═══════════════════════════════════════════════ -->
+<section id="s3">
+  <h2><span class="section-number">3</span> Preparación de Active Directory</h2>
+
+  <h3>3.1 Obtener los datos del dominio</h3>
+  <p>Ejecutar en un Domain Controller o máquina con RSAT instalado:</p>
+  <pre><span class="cmd">$domain</span> = <span class="cmd">Get-ADDomain</span>
+
+<span class="comment"># LDAP_URL — FQDN del Domain Controller principal</span>
+<span class="str">"LDAP_URL=ldap://"</span> + (<span class="cmd">Get-ADDomainController</span>).HostName
+
+<span class="comment"># LDAP_BASE_DN — Distinguished Name del dominio</span>
+<span class="str">"LDAP_BASE_DN="</span> + <span class="cmd">$domain</span>.DistinguishedName
+
+<span class="comment"># AD_DOMAIN — Nombre NetBIOS (ej. LAB-MH)</span>
+<span class="str">"AD_DOMAIN="</span> + <span class="cmd">$domain</span>.NetBIOSName</pre>
+
+  <h3>3.2 Crear la cuenta de servicio</h3>
+  <p>Esta cuenta es usada por Node.js para buscar usuarios en AD. Solo necesita <strong>permisos de lectura</strong> (Domain Users es suficiente).</p>
+  <pre><span class="cmd">$pass</span> = <span class="cmd">Read-Host</span> <span class="val">-AsSecureString</span> <span class="str">"Contraseña para svc-rdweb"</span>
+
+<span class="cmd">New-ADUser</span> `
+  <span class="val">-Name</span>              <span class="str">"svc-rdweb"</span> `
+  <span class="val">-SamAccountName</span>    <span class="str">"svc-rdweb"</span> `
+  <span class="val">-UserPrincipalName</span> <span class="str">"svc-rdweb@lab-mh.local"</span> `
+  <span class="val">-AccountPassword</span>   <span class="cmd">$pass</span> `
+  <span class="val">-Enabled</span>           <span class="cmd">$true</span> `
+  <span class="val">-PasswordNeverExpires</span> <span class="cmd">$true</span> `
+  <span class="val">-Description</span>      <span class="str">"Cuenta de servicio RDWeb-Moderno (solo lectura)"</span>
+
+<span class="comment"># Verificar</span>
+<span class="cmd">Get-ADUser</span> svc-rdweb | <span class="cmd">Select-Object</span> Name, UserPrincipalName, Enabled</pre>
+
+  <h3>3.3 Obtener datos del RD Connection Broker y Gateway</h3>
+  <pre><span class="comment"># RDCB_SERVER</span>
+<span class="cmd">Get-RDServer</span> <span class="val">-Role</span> RDS-CONNECTION-BROKER | <span class="cmd">Select-Object</span> Server
+
+<span class="comment"># RDGATEWAY_HOSTNAME</span>
+<span class="cmd">Get-RDServer</span> <span class="val">-Role</span> RDS-GATEWAY | <span class="cmd">Select-Object</span> Server</pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SECCIÓN 4 — BACKEND
+═══════════════════════════════════════════════ -->
+<section id="s4">
+  <h2><span class="section-number">4</span> Despliegue del backend Node.js</h2>
+
+  <h3>4.1 Copiar archivos al servidor</h3>
+  <p>Copiar la carpeta <code>backend\</code> del proyecto al servidor:</p>
+  <pre><span class="comment"># Ruta destino en el servidor</span>
+C:\inetpub\wwwroot\rdweb-moderno\backend\</pre>
+
+  <div class="alert note">
+    <span class="alert-icon">ℹ️</span>
+    <div><strong>Nota</strong> No copiar la carpeta <code>node_modules\</code> — se instala en el servidor.</div>
+  </div>
+
+  <pre><span class="comment"># En el servidor, instalar dependencias</span>
+<span class="cmd">cd</span> C:\inetpub\wwwroot\rdweb-moderno\backend
+<span class="cmd">npm</span> install <span class="val">--production</span></pre>
+
+  <h3>4.2 Crear el archivo .env</h3>
+  <p>Crear el archivo <code>.env</code> en <code>C:\inetpub\wwwroot\rdweb-moderno\backend\.env</code> con el siguiente contenido:</p>
+  <pre><span class="comment"># ── Servidor ──────────────────────────────</span>
+PORT=3000
+NODE_ENV=production
+
+<span class="comment"># ── JWT (generar con el comando de abajo) ─</span>
+JWT_SECRET=<span class="val">REEMPLAZAR_CON_SECRETO_GENERADO</span>
+JWT_EXPIRES_IN=8h
+
+<span class="comment"># ── Active Directory ──────────────────────</span>
+LDAP_URL=ldap://DC01.lab-mh.local
+LDAP_BASE_DN=DC=lab-mh,DC=local
+AD_DOMAIN=LAB-MH
+AD_SERVICE_USER=svc-rdweb@lab-mh.local
+AD_SERVICE_PASS=<span class="val">CONTRASEÑA_DE_SVC_RDWEB</span>
+
+<span class="comment"># ── RDS ───────────────────────────────────</span>
+RDCB_SERVER=SRV-APP.LAB-MH.LOCAL
+RDGATEWAY_HOSTNAME=rdgateway.lab-mh.local
+
+<span class="comment"># ── Simulación (desactivada en producción) </span>
+SIMULATION_MODE=false</pre>
+
+  <pre><span class="comment"># Generar un JWT_SECRET seguro con PowerShell</span>
+<span class="val">-join</span> ((1..32) | <span class="cmd">ForEach-Object</span> { <span class="str">'{0:x2}'</span> <span class="val">-f</span> (<span class="cmd">Get-Random</span> <span class="val">-Max</span> 256) })</pre>
+
+  <div class="alert danger">
+    <span class="alert-icon">🔐</span>
+    <div><strong>Seguridad</strong> El archivo <code>.env</code> contiene credenciales. Asignar permisos NTFS restrictivos:<br>
+    Solo la cuenta de servicio de PM2 / sistema local debe poder leerlo.</div>
+  </div>
+
+  <h3>4.3 Crear ecosystem.config.js</h3>
+  <p>Este archivo es la configuración de PM2. Crear en <code>C:\inetpub\wwwroot\rdweb-moderno\backend\ecosystem.config.js</code>:</p>
+  <pre><span class="kw">module.exports</span> = {
+  apps: [{
+    <span class="val">name</span>:        <span class="str">'rdweb-backend'</span>,
+    <span class="val">script</span>:      <span class="str">'src/index.js'</span>,
+    <span class="val">cwd</span>:         <span class="str">'C:\\inetpub\\wwwroot\\rdweb-moderno\\backend'</span>,
+    <span class="val">instances</span>:   1,
+    <span class="val">watch</span>:       <span class="kw">false</span>,
+    <span class="val">env_production</span>: {
+      <span class="val">NODE_ENV</span>: <span class="str">'production'</span>
+    }
+  }]
+};</pre>
+
+  <h3>4.4 Registrar el backend con PM2</h3>
+  <pre><span class="cmd">cd</span> C:\inetpub\wwwroot\rdweb-moderno\backend
+
+<span class="comment"># Iniciar el backend</span>
+<span class="cmd">pm2</span> start ecosystem.config.js <span class="val">--env</span> production
+
+<span class="comment"># Guardar la lista de procesos (para que reinicie solo)</span>
+<span class="cmd">pm2</span> save
+
+<span class="comment"># Verificar que está corriendo</span>
+<span class="cmd">pm2</span> status
+<span class="cmd">pm2</span> logs rdweb-backend <span class="val">--lines</span> 20</pre>
+
+  <pre><span class="comment"># Verificar que el backend responde</span>
+<span class="cmd">Invoke-RestMethod</span> http://localhost:3000/api/health
+<span class="comment"># Debe retornar: { status: "ok", simulationMode: false, ... }</span></pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SECCIÓN 5 — FRONTEND
+═══════════════════════════════════════════════ -->
+<section id="s5">
+  <h2><span class="section-number">5</span> Compilar y desplegar el frontend Angular</h2>
+
+  <div class="alert note">
+    <span class="alert-icon">💡</span>
+    <div>La compilación se puede hacer en cualquier máquina con Node.js y Angular CLI. El resultado (archivos estáticos) se copia al servidor.</div>
+  </div>
+
+  <h3>5.1 Configurar el environment de producción</h3>
+  <p>En la máquina de desarrollo, editar <code>frontend\src\environments\environment.prod.ts</code>:</p>
+  <pre><span class="kw">export const</span> environment = {
+  <span class="val">production</span>: <span class="kw">true</span>,
+  <span class="val">apiUrl</span>: <span class="str">'/api'</span>,  <span class="comment">// Relativo — IIS hace el reverse proxy</span>
+};</pre>
+
+  <h3>5.2 Compilar para producción</h3>
+  <pre><span class="cmd">cd</span> RDWeb-Moderno\frontend
+
+<span class="comment"># Compilar en modo producción</span>
+<span class="cmd">ng</span> build <span class="val">--configuration</span> production
+
+<span class="comment"># Los archivos compilados quedan en:</span>
+<span class="comment">#   frontend\dist\frontend\browser\</span></pre>
+
+  <h3>5.3 Copiar al servidor</h3>
+  <pre><span class="comment"># Copiar el contenido de dist\frontend\browser\ al servidor</span>
+C:\inetpub\wwwroot\rdweb-moderno\frontend\   <span class="comment">← destino</span></pre>
+
+  <p>La estructura final en el servidor debe quedar:</p>
+  <pre>C:\inetpub\wwwroot\rdweb-moderno\
+  ├── frontend\          ← Archivos Angular compilados
+  │   ├── index.html
+  │   ├── main-HASH.js
+  │   ├── styles-HASH.css
+  │   └── web.config     ← (creado en el paso 6)
+  └── backend\
+      ├── src\
+      ├── node_modules\
+      ├── .env
+      └── ecosystem.config.js</pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SECCIÓN 6 — IIS
+═══════════════════════════════════════════════ -->
+<section id="s6">
+  <h2><span class="section-number">6</span> Configuración de IIS</h2>
+
+  <h3>6.1 Crear el sitio web en IIS</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <strong>Abrir IIS Manager</strong>
+        <p>Ejecutar <code>inetmgr</code> en PowerShell o desde el menú Inicio → Herramientas administrativas → Internet Information Services.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <strong>Crear nuevo sitio</strong>
+        <p>Click derecho en <strong>Sites</strong> → <strong>Add Website</strong>. Completar:<br>
+        · Site name: <code>rdweb-moderno</code><br>
+        · Physical path: <code>C:\inetpub\wwwroot\rdweb-moderno\frontend</code><br>
+        · Binding: HTTPS, puerto 443 (o HTTP:80 para pruebas iniciales).<br>
+        · Hostname: el FQDN que usarán los usuarios (ej: <code>rdweb.lab-mh.local</code>)</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <strong>Application Pool</strong>
+        <p>El pool por defecto <strong>No Managed Code</strong> es correcto para servir archivos estáticos de Angular. Verificar que esté en <code>No Managed Code</code> (no ASP.NET).</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>6.2 Crear el web.config para Angular + Reverse Proxy</h3>
+  <p>Crear el archivo <code>C:\inetpub\wwwroot\rdweb-moderno\frontend\web.config</code>:</p>
+  <pre><span class="tag">&lt;?xml version="1.0" encoding="UTF-8"?&gt;</span>
+<span class="tag">&lt;configuration&gt;</span>
+  <span class="tag">&lt;system.webServer&gt;</span>
+    <span class="tag">&lt;rewrite&gt;</span>
+      <span class="tag">&lt;rules&gt;</span>
+
+        <span class="comment">&lt;!-- REGLA 1: /api/* → Node.js en puerto 3000 (Reverse Proxy) --&gt;</span>
+        <span class="tag">&lt;rule</span> <span class="val">name</span>=<span class="str">"API Reverse Proxy"</span> <span class="val">stopProcessing</span>=<span class="str">"true"</span><span class="tag">&gt;</span>
+          <span class="tag">&lt;match</span> <span class="val">url</span>=<span class="str">"^api/(.*)"</span> <span class="tag">/&gt;</span>
+          <span class="tag">&lt;action</span> <span class="val">type</span>=<span class="str">"Rewrite"</span>
+                  <span class="val">url</span>=<span class="str">"http://localhost:3000/api/{R:1}"</span> <span class="tag">/&gt;</span>
+        <span class="tag">&lt;/rule&gt;</span>
+
+        <span class="comment">&lt;!-- REGLA 2: Angular SPA — todas las rutas → index.html --&gt;</span>
+        <span class="tag">&lt;rule</span> <span class="val">name</span>=<span class="str">"Angular SPA"</span> <span class="val">stopProcessing</span>=<span class="str">"true"</span><span class="tag">&gt;</span>
+          <span class="tag">&lt;match</span> <span class="val">url</span>=<span class="str">".*"</span> <span class="tag">/&gt;</span>
+          <span class="tag">&lt;conditions</span> <span class="val">logicalGrouping</span>=<span class="str">"MatchAll"</span><span class="tag">&gt;</span>
+            <span class="tag">&lt;add</span> <span class="val">input</span>=<span class="str">"{REQUEST_FILENAME}"</span>
+                 <span class="val">matchType</span>=<span class="str">"IsFile"</span>
+                 <span class="val">negate</span>=<span class="str">"true"</span> <span class="tag">/&gt;</span>
+            <span class="tag">&lt;add</span> <span class="val">input</span>=<span class="str">"{REQUEST_FILENAME}"</span>
+                 <span class="val">matchType</span>=<span class="str">"IsDirectory"</span>
+                 <span class="val">negate</span>=<span class="str">"true"</span> <span class="tag">/&gt;</span>
+          <span class="tag">&lt;/conditions&gt;</span>
+          <span class="tag">&lt;action</span> <span class="val">type</span>=<span class="str">"Rewrite"</span> <span class="val">url</span>=<span class="str">"/index.html"</span> <span class="tag">/&gt;</span>
+        <span class="tag">&lt;/rule&gt;</span>
+
+      <span class="tag">&lt;/rules&gt;</span>
+    <span class="tag">&lt;/rewrite&gt;</span>
+
+    <span class="comment">&lt;!-- MIME types adicionales --&gt;</span>
+    <span class="tag">&lt;staticContent&gt;</span>
+      <span class="tag">&lt;mimeMap</span> <span class="val">fileExtension</span>=<span class="str">".webmanifest"</span>
+               <span class="val">mimeType</span>=<span class="str">"application/manifest+json"</span> <span class="tag">/&gt;</span>
+    <span class="tag">&lt;/staticContent&gt;</span>
+
+    <span class="comment">&lt;!-- Cache para assets con hash (Angular los versiona) --&gt;</span>
+    <span class="tag">&lt;httpProtocol&gt;</span>
+      <span class="tag">&lt;customHeaders&gt;</span>
+        <span class="tag">&lt;add</span> <span class="val">name</span>=<span class="str">"X-Content-Type-Options"</span> <span class="val">value</span>=<span class="str">"nosniff"</span> <span class="tag">/&gt;</span>
+        <span class="tag">&lt;add</span> <span class="val">name</span>=<span class="str">"X-Frame-Options"</span>        <span class="val">value</span>=<span class="str">"SAMEORIGIN"</span> <span class="tag">/&gt;</span>
+      <span class="tag">&lt;/customHeaders&gt;</span>
+    <span class="tag">&lt;/httpProtocol&gt;</span>
+
+  <span class="tag">&lt;/system.webServer&gt;</span>
+<span class="tag">&lt;/configuration&gt;</span></pre>
+
+  <h3>6.3 Habilitar ARR Proxy (si no se hizo antes)</h3>
+  <pre><span class="cmd">Import-Module</span> WebAdministration
+<span class="cmd">Set-WebConfigurationProperty</span> `
+  <span class="val">-pspath</span>  <span class="str">'MACHINE/WEBROOT/APPHOST'</span> `
+  <span class="val">-filter</span>  <span class="str">"system.webServer/proxy"</span> `
+  <span class="val">-name</span>    <span class="str">"enabled"</span> `
+  <span class="val">-value</span>   <span class="str">"True"</span>
+
+<span class="comment"># Reiniciar IIS para aplicar cambios</span>
+<span class="cmd">iisreset</span></pre>
+
+  <h3>6.4 Certificado SSL (recomendado para producción)</h3>
+  <p>Si tienes una CA interna (ADCS) en el dominio, solicitar un certificado desde Administrador de IIS → Server Certificates → Create Domain Certificate. Alternativa: usar Let's Encrypt con <code>win-acme</code>.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SECCIÓN 7 — VERIFICACIÓN
+═══════════════════════════════════════════════ -->
+<section id="s7">
+  <h2><span class="section-number">7</span> Verificación final</h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <strong>Verificar Backend directo</strong>
+        <pre style="margin-top:0.5rem"><span class="cmd">Invoke-RestMethod</span> http://localhost:3000/api/health</pre>
+        <p>Esperado: <code>{ "status": "ok", "simulationMode": false }</code></p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <strong>Verificar IIS sirviendo el Frontend</strong>
+        <p>Abrir en navegador: <code>http://rdweb.lab-mh.local</code> — debe aparecer la pantalla de login.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <strong>Verificar Reverse Proxy</strong>
+        <pre style="margin-top:0.5rem"><span class="cmd">Invoke-RestMethod</span> http://rdweb.lab-mh.local/api/health</pre>
+        <p>Si responde igual que el paso 1, el proxy está funcionando.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <strong>Verificar Login con AD real</strong>
+        <p>Ingresar con usuario del dominio. Si falla, revisar los logs de PM2:</p>
+        <pre style="margin-top:0.5rem"><span class="cmd">pm2</span> logs rdweb-backend <span class="val">--lines</span> 50</pre>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <strong>Verificar Cookie en DevTools</strong>
+        <p>F12 → Network → login request → Response Headers debe mostrar <code>set-cookie: rdweb_token=...</code>. Luego en Application → Cookies → el sitio debe mostrar <code>rdweb_token</code>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <strong>Probar lanzamiento de una app</strong>
+        <p>Hacer click en una RemoteApp del dashboard. Debe descargarse un archivo <code>.rdp</code>. Abrirlo debe iniciar la conexión a través del RD Gateway.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SECCIÓN 8 — TROUBLESHOOTING
+═══════════════════════════════════════════════ -->
+<section id="s8">
+  <h2><span class="section-number">8</span> Resolución de problemas comunes</h2>
+
+  <table>
+    <tr><th>Síntoma</th><th>Causa probable</th><th>Solución</th></tr>
+    <tr>
+      <td>Login falla con "Credenciales incorrectas"</td>
+      <td>AD_SERVICE_USER/PASS incorrecto o cuenta bloqueada</td>
+      <td>Verificar con <code>Test-ADAuthentication</code></td>
+    </tr>
+    <tr>
+      <td><code>set-cookie</code> no aparece en DevTools</td>
+      <td>CORS bloqueando la cookie cross-origin en dev</td>
+      <td>Usar proxy de Angular en dev (<code>proxy.conf.json</code>) — en prod IIS es same-origin</td>
+    </tr>
+    <tr>
+      <td>Dashboard queda en "Cargando..." infinito</td>
+      <td>Sin zone.js, Angular no detecta cambios async</td>
+      <td><code>ChangeDetectorRef.detectChanges()</code> implementado — reiniciar si persiste</td>
+    </tr>
+    <tr>
+      <td>502 Bad Gateway en /api/*</td>
+      <td>Node.js no está corriendo (PM2 caído)</td>
+      <td><code>pm2 restart rdweb-backend</code></td>
+    </tr>
+    <tr>
+      <td>404 en rutas de Angular (ej: /dashboard al recargar)</td>
+      <td>URL Rewrite no redirige a index.html</td>
+      <td>Verificar que el <code>web.config</code> tiene la regla "Angular SPA"</td>
+    </tr>
+    <tr>
+      <td>Cannot connect to LDAP</td>
+      <td>Firewall bloqueando puerto 389 hacia el DC</td>
+      <td><code>Test-NetConnection dc01.lab-mh.local -Port 389</code></td>
+    </tr>
+    <tr>
+      <td>HTTP 401 en /api/apps después de login</td>
+      <td>Cookie no se envía en la petición</td>
+      <td>Verificar <code>withCredentials: true</code> o que el interceptor esté registrado en <code>app.config.ts</code></td>
+    </tr>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SECCIÓN 9 — ACTUALIZAR
+═══════════════════════════════════════════════ -->
+<section id="s9">
+  <h2><span class="section-number">9</span> Actualizar la aplicación</h2>
+
+  <h3>Actualizar solo el backend</h3>
+  <pre><span class="comment"># Copiar nuevos archivos src\ al servidor, luego:</span>
+<span class="cmd">cd</span> C:\inetpub\wwwroot\rdweb-moderno\backend
+<span class="cmd">npm</span> install <span class="val">--production</span>   <span class="comment"># si hay nuevas dependencias</span>
+<span class="cmd">pm2</span> reload rdweb-backend      <span class="comment"># zero-downtime restart</span>
+<span class="cmd">pm2</span> logs rdweb-backend <span class="val">--lines</span> 20  <span class="comment"># verificar sin errores</span></pre>
+
+  <h3>Actualizar solo el frontend</h3>
+  <pre><span class="comment"># En máquina de desarrollo:</span>
+<span class="cmd">ng</span> build <span class="val">--configuration</span> production
+
+<span class="comment"># Copiar dist\frontend\browser\ al servidor</span>
+<span class="comment"># IMPORTANTE: mantener el web.config existente</span>
+<span class="comment"># IIS sirve los nuevos archivos automáticamente — no requiere reinicio</span></pre>
+
+  <h3>Actualizar variables de entorno (.env)</h3>
+  <pre><span class="comment"># Editar C:\inetpub\wwwroot\rdweb-moderno\backend\.env</span>
+<span class="comment"># Luego reiniciar el proceso (el .env se carga al inicio):</span>
+<span class="cmd">pm2</span> stop    rdweb-backend
+<span class="cmd">pm2</span> start   ecosystem.config.js <span class="val">--env</span> production
+<span class="cmd">pm2</span> save</pre>
+
+  <hr class="divider">
+
+  <h3>Lista de verificación para una instalación nueva</h3>
+  <ul class="checklist">
+    <li>Node.js LTS instalado y verificado (<code>node --version</code>)</li>
+    <li>IIS instalado con los feature roles necesarios</li>
+    <li>URL Rewrite Module instalado</li>
+    <li>Application Request Routing (ARR) instalado y habilitado</li>
+    <li>PM2 instalado globalmente y configurado como servicio de Windows</li>
+    <li>Cuenta de servicio <code>svc-rdweb</code> creada en AD</li>
+    <li>Archivo <code>.env</code> creado con todos los valores reales</li>
+    <li>Backend corriendo en PM2 (<code>pm2 status</code> = online)</li>
+    <li>Frontend compilado y copiado a <code>frontend\</code></li>
+    <li>Sitio web en IIS creado apuntando a la carpeta <code>frontend\</code></li>
+    <li><code>web.config</code> con reglas de Angular SPA y API Proxy</li>
+    <li>ARR proxy habilitado globalmente</li>
+    <li>Test de login exitoso con usuario del dominio</li>
+    <li>Archivo <code>.rdp</code> descargado y conexión establecida vía Gateway</li>
+  </ul>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  RDWeb-Moderno · Documentación interna · Generado el 4 de marzo de 2025<br>
+  Stack: Node.js + Express · Angular 17 · IIS 10 · Windows Server 2019 · Active Directory
+</footer>
+
+<script>
+  // Botón para imprimir como PDF
+  const btn = document.createElement('button');
+  btn.textContent = '🖨️ Imprimir / Guardar como PDF';
+  btn.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#5b52e8;color:white;border:none;padding:12px 20px;border-radius:12px;font-family:Inter,sans-serif;font-weight:600;cursor:pointer;font-size:14px;box-shadow:0 4px 20px rgba(91,82,232,0.4);z-index:999;';
+  btn.onclick = () => window.print();
+  document.body.appendChild(btn);
+</script>
+</body>
+</html>
