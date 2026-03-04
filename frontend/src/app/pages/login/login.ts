@@ -17,8 +17,8 @@ import { AuthService } from '../../core/services/auth.service';
     styleUrl: './login.css',
 })
 export class LoginComponent {
-    username = '';
-    password = '';
+    username = 'usr_finanzas1';
+    password = 'P@$$w0rd.2025.';
     showPassword = false;
     isPublic = false;
     loading = false;

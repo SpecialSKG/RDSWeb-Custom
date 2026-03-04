@@ -1,7 +1,12 @@
 require('dotenv').config();
 
+function toInt(value, fallback) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+}
+
 module.exports = {
-    port: parseInt(process.env.PORT) || 3000,
+    port: Number.parseInt(process.env.PORT, 10) || 3000,
     nodeEnv: process.env.NODE_ENV || 'development',
 
     jwt: {
@@ -25,6 +30,20 @@ module.exports = {
 
     rdGateway: {
         hostname: process.env.RDGATEWAY_HOSTNAME || 'rdgateway.lab-mh.local',
+    },
+
+    rdp: {
+        gatewayCredentialsSource: toInt(process.env.RDP_GATEWAY_CREDENTIAL_SOURCE, 0),
+        promptCredentialOnce: process.env.RDP_PROMPT_CREDENTIAL_ONCE !== 'false',
+        promptForCredentialsOnClient: process.env.RDP_PROMPT_FOR_CREDENTIALS_ON_CLIENT !== 'false',
+        useMultimon: process.env.RDP_USE_MULTIMON === 'true',
+        spanMonitors: process.env.RDP_SPAN_MONITORS === 'true',
+        signing: {
+            enabled: process.env.RDP_SIGN_ENABLED === 'true',
+            required: process.env.RDP_SIGN_REQUIRED === 'true',
+            thumbprint: (process.env.RDP_SIGN_CERT_THUMBPRINT || '').replaceAll(/[^a-fA-F0-9]/g, ''),
+            toolPath: process.env.RDP_SIGN_TOOL_PATH || 'rdpsign.exe',
+        },
     },
 
     simulation: {
