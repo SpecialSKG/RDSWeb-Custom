@@ -7,7 +7,9 @@ const router = express.Router();
 // GET /api/apps  — lista de RemoteApps del usuario autenticado
 router.get('/', authenticate, async (req, res) => {
     try {
+        console.log(`[apps] GET /api/apps → usuario: ${req.user?.username}`);
         const { apps, desktops } = await getAppsForUser(req.user);
+        console.log(`[apps] Respuesta → ${apps.length} apps, ${desktops.length} escritorios`);
         return res.json({ ok: true, apps, desktops });
     } catch (err) {
         console.error('[apps/get]', err.message);

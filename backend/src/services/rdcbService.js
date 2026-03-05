@@ -156,30 +156,41 @@ const SIMULATED_DESKTOPS = [
  * @returns {Promise<{apps: Array, desktops: Array}>}
  */
 async function getAppsForUser(user) {
+  console.log(`[rdcbService] getAppsForUser → usuario: ${user?.username}, dominio: ${user?.domain}, grupos AD: [${(user?.groups || []).join(', ')}]`);
+
+  const userPermissionSet = getUserPermissionSet(user);
+  console.log(`[rdcbService] Permission set (${userPermissionSet.size} entradas): [${[...userPermissionSet].join(', ')}]`);
+
   if (config.simulation.enabled) {
-    const userPermissionSet = getUserPermissionSet(user);
     const apps = SIMULATED_APPS.filter((app) =>
       isResourceAllowedForUser(app.allowedGroups, userPermissionSet),
     );
     const desktops = SIMULATED_DESKTOPS.filter((desktop) =>
       isResourceAllowedForUser(desktop.allowedGroups, userPermissionSet),
     );
-
-    return {
-      apps,
-      desktops,
-    };
+    console.log(`[rdcbService] SIMULACIÓN → apps permitidas: ${apps.length}, escritorios: ${desktops.length}`);
+    return { apps, desktops };
   }
 
   // ── MODO REAL — PowerShell (RemoteDesktop Module) ─────────────────────────
   try {
-    // Silenciamos advertencias y manejamos errores silenciosamente para no romper el JSON
-    const psScript = `$WarningPreference = 'SilentlyContinue'; $ErrorActionPreference = 'SilentlyContinue'; $apps = Get-RDRemoteApp -ConnectionBroker '${config.rdcb.server}' | Where-Object { $_.ShowInWebAccess -eq $true } | Select-Object -Property DisplayName, Alias, FolderName, CollectionName, UserGroups; if ($apps) { $apps | ConvertTo-Json -Compress -Depth 5 } else { '[]' }`;
+    const psScript = `
+      $WarningPreference = 'SilentlyContinue';
+      $ErrorActionPreference = 'Stop';
+      Import-Module RemoteDesktop -ErrorAction Stop;
+      $all = Get-RDRemoteApp -ConnectionBroker '${config.rdcb.server}' -ErrorAction Stop;
+      $visible = @($all | Where-Object { $_.ShowInWebAccess -eq $true });
+      if ($visible.Count -gt 0) { $visible | Select-Object DisplayName, Alias, FolderName, CollectionName, UserGroups | ConvertTo-Json -Compress -Depth 5 } else { '[]' }
+    `.replace(/\n\s*/g, ' ').trim();
+
+    console.log(`[rdcbService] Ejecutando PowerShell contra ${config.rdcb.server}...`);
 
     const result = execSync(
       `powershell.exe -NonInteractive -NoProfile -Command "${psScript}"`,
-      { encoding: "utf8", timeout: 15000, windowsHide: true },
+      { encoding: "utf8", timeout: 20000, windowsHide: true },
     );
+
+    console.log(`[rdcbService] Salida raw PS (primeros 500 chars): ${String(result).substring(0, 500)}`);
 
     // Limpiamos cualquier posible texto residual antes del JSON (por si PowerShell es terco)
     const jsonString =
@@ -188,6 +199,7 @@ async function getAppsForUser(user) {
 
     const raw = JSON.parse(jsonString);
     const appsArray = Array.isArray(raw) ? raw : [raw];
+    console.log(`[rdcbService] RDCB devolvió ${appsArray.length} apps totales`);
 
     const apps = appsArray.map((a) => {
       let allowedGroups = [];
@@ -209,14 +221,18 @@ async function getAppsForUser(user) {
       };
     });
 
-    const userPermissionSet = getUserPermissionSet(user);
-    const filteredApps = apps.filter((app) =>
-      isResourceAllowedForUser(app.allowedGroups, userPermissionSet),
-    );
+    const filteredApps = apps.filter((app) => {
+      const allowed = isResourceAllowedForUser(app.allowedGroups, userPermissionSet);
+      console.log(`[rdcbService]   app "${app.alias}" allowedGroups=[${app.allowedGroups.map(g => normalizeGroupName(g)).join(', ')}] → ${allowed ? 'PERMITIDA' : 'DENEGADA'}`);
+      return allowed;
+    });
 
+    console.log(`[rdcbService] Apps después de filtrar: ${filteredApps.length}/${apps.length}`);
     return { apps: filteredApps, desktops: [] };
   } catch (err) {
     console.error("[rdcbService] Error ejecutando PowerShell:", err.message);
+    console.error("[rdcbService] stdout:", String(err.stdout || '').substring(0, 1000));
+    console.error("[rdcbService] stderr:", String(err.stderr || '').substring(0, 1000));
     throw new Error("No se pudo contactar al RD Connection Broker");
   }
 }

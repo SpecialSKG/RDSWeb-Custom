@@ -123,12 +123,14 @@ async function authenticateUser(username, password) {
         const user = await authenticate(adOptions);
 
         // `user` contiene los atributos LDAP del usuario si la auth fue exitosa
+        const groups = extractGroups(user.memberOf);
+        console.log(`[adService] Auth OK → usuario: ${user.sAMAccountName || cleanUser}, grupos (${groups.length}): [${groups.join(', ')}]`);
         return {
             username: user.sAMAccountName || cleanUser,
             displayName: user.displayName || cleanUser,
             email: user.mail || user.userPrincipalName || '',
             domain,
-            groups: extractGroups(user.memberOf),
+            groups,
         };
     } catch (err) {
         // ldap-authentication lanza un error con message '...' cuando las credenciales fallan
