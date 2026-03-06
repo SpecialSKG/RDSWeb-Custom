@@ -1,10 +1,12 @@
-# =====================================================================
+﻿# =====================================================================
 # Constructor Automático de Release - Portal RD Web (Zero-Dependencies)
 # =====================================================================
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
-$ReleaseDir = "$ProjectRoot\Release"
-$ZipFile = "$ProjectRoot\RDWeb-Portal-Release.zip"
+$Timestamp   = Get-Date -Format "yyyy-MM-dd_HH-mm"
+$ReleasesDir = "$ProjectRoot\releases"
+$ReleaseDir  = "$ProjectRoot\Release"
+$ZipFile     = "$ReleasesDir\RDWeb-Portal-$Timestamp.zip"
 
 Write-Host "========================================================" -ForegroundColor Cyan
 Write-Host " Iniciando Construcción y Empaquetado de Producción" -ForegroundColor Cyan
@@ -13,7 +15,7 @@ Write-Host "========================================================" -Foregroun
 # 1. Limpieza de compilaciones anteriores
 Write-Host "`n[1/6] Limpiando entorno..." -ForegroundColor Yellow
 if (Test-Path $ReleaseDir) { Remove-Item -Path $ReleaseDir -Recurse -Force }
-if (Test-Path $ZipFile) { Remove-Item -Path $ZipFile -Force }
+if (-not (Test-Path $ReleasesDir)) { New-Item -ItemType Directory -Path $ReleasesDir | Out-Null }
 New-Item -ItemType Directory -Path $ReleaseDir | Out-Null
 
 # 2. Instalación de dependencias del Frontend
@@ -80,21 +82,79 @@ Copy-Item -Path "$ProjectRoot\prereqs" -Destination $ReleaseDir -Recurse -Force
 Copy-Item -Path "$ProjectRoot\backend\src" -Destination $TargetBack -Recurse -Force
 Copy-Item -Path "$ProjectRoot\backend\node_modules" -Destination $TargetBack -Recurse -Force
 Copy-Item -Path "$ProjectRoot\backend\package.json" -Destination $TargetBack -Force
-Copy-Item -Path "$ProjectRoot\backend\.env.template" -Destination $TargetBack -Force
+Copy-Item -Path "$ProjectRoot\backend\.env" -Destination $TargetBack -Force
 Copy-Item -Path "$ProjectRoot\backend\nssm.exe" -Destination $TargetBack -Force
+Copy-Item -Path "$ProjectRoot\backend\node.exe" -Destination $TargetBack -Force
 
 # --- Copiar Instalador ---
 Copy-Item -Path "$ProjectRoot\install.ps1" -Destination $ReleaseDir -Force
 
 # 6. Compresión Final
-Write-Host "`n[6/6] Comprimiendo el paquete (ZIP)..." -ForegroundColor Yellow
+Write-Host "`n[6/7] Comprimiendo el paquete (ZIP)..." -ForegroundColor Yellow
 Compress-Archive -Path "$ReleaseDir\*" -DestinationPath $ZipFile -Force
 Remove-Item -Path $ReleaseDir -Recurse -Force
+
+# 7. Generar instalador .exe autónomo (ZIP embebido como base64 via ps2exe)
+Write-Host "`n[7/7] Generando instalador .exe autónomo..." -ForegroundColor Yellow
+
+if (-not (Get-Command Invoke-ps2exe -ErrorAction SilentlyContinue)) {
+    Write-Host "  -> Instalando módulo ps2exe (una sola vez)..." -ForegroundColor Yellow
+    Install-Module -Name ps2exe -Scope CurrentUser -Force -ErrorAction Stop
+    Import-Module ps2exe -Force
+}
+
+Write-Host "  -> Codificando paquete en base64 (puede tardar unos segundos)..."
+$zipBytes  = [System.IO.File]::ReadAllBytes($ZipFile)
+$zipBase64 = [Convert]::ToBase64String($zipBytes, 'InsertLineBreaks')
+
+$LauncherPs1 = "$ReleasesDir\_launcher_tmp.ps1"
+$ExeFile     = "$ReleasesDir\RDWeb-Portal-Installer-$Timestamp.exe"
+
+# Genera el script lanzador que quedará compilado dentro del .exe
+# - Al ejecutarse, decodifica el ZIP, lo extrae a %TEMP% y lanza install.ps1
+Set-Content -Path $LauncherPs1 -Encoding UTF8 -Value @"
+`$zipBase64 = @'
+$zipBase64
+'@
+
+`$tempDir = "`$env:TEMP\RDWebInstall"
+if (Test-Path `$tempDir) { Remove-Item `$tempDir -Recurse -Force }
+New-Item -ItemType Directory -Path `$tempDir | Out-Null
+
+`$zipPath = "`$tempDir\release.zip"
+Write-Host "Extrayendo paquete de instalación..."
+[System.IO.File]::WriteAllBytes(`$zipPath, [Convert]::FromBase64String(`$zipBase64.Trim()))
+Expand-Archive -Path `$zipPath -DestinationPath `$tempDir -Force
+Remove-Item `$zipPath -Force
+
+`$installScript = "`$tempDir\install.ps1"
+if (-not (Test-Path `$installScript)) {
+    Write-Host "[ERROR] No se encontró install.ps1 dentro del paquete." -ForegroundColor Red
+    Read-Host "Presiona Enter para salir..."
+    Exit
+}
+
+Set-Location `$tempDir
+& `$installScript
+"@
+
+Write-Host "  -> Compilando .exe con ps2exe..."
+Invoke-ps2exe -InputFile $LauncherPs1 -OutputFile $ExeFile -RequireAdmin -ErrorAction Stop
+
+# ps2exe puede mantener el archivo abierto brevemente tras compilar — reintentamos
+$retries = 5
+while ($retries -gt 0) {
+    Start-Sleep -Milliseconds 500
+    try { Remove-Item $LauncherPs1 -Force -ErrorAction Stop; break }
+    catch { $retries-- }
+}
 
 Write-Host "`n========================================================" -ForegroundColor Green
 Write-Host " ¡CONSTRUCCIÓN COMPLETADA CON ÉXITO!" -ForegroundColor Green
 Write-Host "========================================================" -ForegroundColor Green
-Write-Host "Tu paquete maestro está listo en:"
-Write-Host $ZipFile -ForegroundColor Cyan
+Write-Host "ZIP de respaldo:"
+Write-Host "  $ZipFile" -ForegroundColor DarkGray
+Write-Host "Instalador EXE (distribuir este):"
+Write-Host "  $ExeFile" -ForegroundColor Cyan
 Write-Host ""
 Read-Host "Presiona Enter para salir..."

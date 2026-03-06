@@ -1,4 +1,4 @@
-# =====================================================================
+﻿# =====================================================================
 # Instalador Maestro Todo-en-Uno: Portal RD Web (Backend + Frontend)
 # =====================================================================
 $ErrorActionPreference = "Stop"
@@ -21,19 +21,21 @@ $SourceBackend = "$SourceDir\backend"
 $SourceFrontend = "$SourceDir\frontend"
 
 # Puedes ajustar estas rutas destino si en tu IIS se llaman diferente
-$TargetBackend  = "C:\inetpub\wwwroot\backend"
+$TargetBackend = "C:\inetpub\wwwroot\backend"
 $TargetFrontend = "C:\inetpub\wwwroot\frontend"
 
 $ServiceName = "RDSWeb"
 $NssmTarget = "$TargetBackend\nssm.exe"
 $AppEntry = "$TargetBackend\src\index.js"
 
-$NodePath = (Get-Command "node.exe" -ErrorAction SilentlyContinue).Source
+# node.exe se incluye dentro del paquete backend (no requiere instalación global)
+$NodePathSource = "$SourceBackend\node.exe"
+$NodePath       = "$TargetBackend\node.exe"
 
 # 3. PRE-FLIGHT CHECKS (Validación del ZIP)
-if (-not $NodePath) {
-    Write-Host "[ERROR] Node.js no está instalado o no está en el PATH de Windows." -ForegroundColor Red
-    Read-Host "Instala Node.js en este servidor y vuelve a intentarlo..."
+if (-not (Test-Path $NodePathSource)) {
+    Write-Host "[ERROR] No se encontró node.exe en el paquete ($NodePathSource)." -ForegroundColor Red
+    Read-Host "Asegúrate de que el ZIP fue generado correctamente con build.ps1..."
     Exit
 }
 if (-not (Test-Path $SourceBackend) -or -not (Test-Path $SourceFrontend)) {
@@ -50,15 +52,27 @@ Write-Host "`n[FASE 0] Verificando Prerrequisitos de IIS..." -ForegroundColor Cy
 
 $PrereqsDir = "$SourceDir\prereqs"
 $RewriteDll = "$env:windir\System32\inetsrv\rewrite.dll"
-$ArrDll     = "$env:windir\System32\inetsrv\requestRouter.dll"
-$AppCmd     = "$env:windir\System32\inetsrv\appcmd.exe"
+$ArrDll = "$env:windir\System32\inetsrv\requestRouter.dll"
+$AppCmd = "$env:windir\System32\inetsrv\appcmd.exe"
 
 # 1. Instalar URL Rewrite
 if (-not (Test-Path $RewriteDll)) {
     Write-Host "  -> Instalando IIS URL Rewrite 2.1 silenciosamente..." -ForegroundColor Yellow
-    $RewriteMsi = "$PrereqsDir\rewrite_amd64.msi"
-    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$RewriteMsi`" /qn /norestart" -Wait -NoNewWindow
-} else {
+    $RewriteMsi = "$PrereqsDir\rewrite_amd64_es-ES.msi"
+    if (-not (Test-Path $RewriteMsi)) {
+        Write-Host "[ERROR] No se encontró el instalador: $RewriteMsi" -ForegroundColor Red
+        Read-Host "Presiona Enter para salir..."
+        Exit
+    }
+    $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$RewriteMsi`" /qn /norestart" -Wait -NoNewWindow -PassThru
+    if ($p.ExitCode -notin @(0, 3010)) {
+        Write-Host "[ERROR] Falló la instalación de URL Rewrite (exit code $($p.ExitCode))." -ForegroundColor Red
+        Read-Host "Presiona Enter para salir..."
+        Exit
+    }
+    Write-Host "  -> URL Rewrite instalado correctamente." -ForegroundColor Green
+}
+else {
     Write-Host "  -> URL Rewrite ya está instalado." -ForegroundColor Green
 }
 
@@ -66,8 +80,20 @@ if (-not (Test-Path $RewriteDll)) {
 if (-not (Test-Path $ArrDll)) {
     Write-Host "  -> Instalando IIS Application Request Routing (ARR) silenciosamente..." -ForegroundColor Yellow
     $ArrMsi = "$PrereqsDir\requestRouter_amd64.msi"
-    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$ArrMsi`" /qn /norestart" -Wait -NoNewWindow
-} else {
+    if (-not (Test-Path $ArrMsi)) {
+        Write-Host "[ERROR] No se encontró el instalador: $ArrMsi" -ForegroundColor Red
+        Read-Host "Presiona Enter para salir..."
+        Exit
+    }
+    $p = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$ArrMsi`" /qn /norestart" -Wait -NoNewWindow -PassThru
+    if ($p.ExitCode -notin @(0, 3010)) {
+        Write-Host "[ERROR] Falló la instalación de ARR (exit code $($p.ExitCode))." -ForegroundColor Red
+        Read-Host "Presiona Enter para salir..."
+        Exit
+    }
+    Write-Host "  -> ARR 3.0 instalado correctamente." -ForegroundColor Green
+}
+else {
     Write-Host "  -> ARR 3.0 ya está instalado." -ForegroundColor Green
 }
 
@@ -78,10 +104,22 @@ if (Test-Path $AppCmd) {
     & $AppCmd set config -section:system.webServer/proxy /enabled:"True" /commit:apphost | Out-Null
 }
 
+# 4. Reiniciar IIS para que cargue los módulos recién instalados
+Write-Host "  -> Reiniciando IIS para aplicar cambios..." -ForegroundColor Yellow
+& iisreset /noforce | Out-Null
+Write-Host "  -> IIS reiniciado." -ForegroundColor Green
+
 # 4. CREDENCIALES (Para el Backend)
 Write-Host "`n[FASE 1] Configuración de Credenciales" -ForegroundColor Cyan
 Write-Host "El backend necesita una cuenta del dominio (Ej: LAB-MH\usr_admin) para consultar RDS." -ForegroundColor Yellow
-$ServiceUser = Read-Host "Usuario del dominio"
+
+do {
+    $ServiceUser = Read-Host "Usuario del dominio (formato: DOMINIO\\usuario)"
+    if ($ServiceUser -notmatch '\\|@') {
+        Write-Host "  [!] Debes incluir el dominio. Ejemplo: LAB-MH\\usr_admin" -ForegroundColor Red
+    }
+} while ($ServiceUser -notmatch '\\|@')
+
 $SecurePass = Read-Host "Contraseña" -AsSecureString
 
 $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePass)
@@ -93,16 +131,27 @@ $PlainPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
 # =====================================================================
 Write-Host "`n[FASE 2] Desplegando Backend..." -ForegroundColor Cyan
 
-# 2.1 Detener servicio previo para liberar archivos
+# 2.1 Detener y eliminar servicio previo (reinstalación limpia)
 if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+    Write-Host "  -> Servicio '$ServiceName' existente detectado. Eliminando..." -ForegroundColor Yellow
     try {
-        Write-Host "  -> Deteniendo servicio antiguo de Node.js..."
-        Stop-Service -Name $ServiceName -Force -ErrorAction Stop
-        if (Test-Path $NssmTarget) { & $NssmTarget remove $ServiceName confirm | Out-Null }
+        Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2
+
+        # Usar nssm del destino si existe, si no, usar el de la fuente (fallo parcial previo)
+        $NssmForRemoval = if (Test-Path $NssmTarget) { $NssmTarget } else { "$SourceBackend\nssm.exe" }
+
+        & $NssmForRemoval remove $ServiceName confirm
+        if ($LASTEXITCODE -ne 0) {
+            throw "nssm remove falló (exit code $LASTEXITCODE). El servicio puede seguir registrado."
+        }
+        Start-Sleep -Seconds 1
+        Write-Host "  -> Servicio anterior eliminado correctamente." -ForegroundColor Green
     }
     catch {
-        Write-Host "  -> [ADVERTENCIA] No se pudo detener el servicio limpiamente. Continuando..." -ForegroundColor DarkYellow
+        Write-Host "[ERROR] No se pudo eliminar el servicio existente: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Ejecuta manualmente: sc delete $ServiceName" -ForegroundColor Yellow
+        Exit
     }
 }
 
@@ -119,17 +168,41 @@ catch {
 
 # 2.3 Instalar Servicio de Windows
 try {
+    # Helper: ejecuta nssm y aborta si falla
+    function Invoke-Nssm {
+        param([string[]]$NssmArgs)
+        & $NssmTarget @NssmArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "NSSM falló en: nssm $($NssmArgs -join ' ') (exit code $LASTEXITCODE)"
+        }
+    }
+
     Write-Host "  -> Instalando servicio persistente ($ServiceName)..."
-    & $NssmTarget install $ServiceName "$NodePath" "`"$AppEntry`""
-    & $NssmTarget set $ServiceName AppDirectory "$TargetBackend"
-    & $NssmTarget set $ServiceName AppEnvironmentExtra "NODE_ENV=production" 
-    & $NssmTarget set $ServiceName ObjectName "$ServiceUser" "$PlainPass"
-    
+    Invoke-Nssm @('install', $ServiceName, $NodePath, "`"$AppEntry`"")
+    Invoke-Nssm @('set', $ServiceName, 'AppDirectory', $TargetBackend)
+    Invoke-Nssm @('set', $ServiceName, 'AppEnvironmentExtra', 'NODE_ENV=production')
+    Invoke-Nssm @('set', $ServiceName, 'ObjectName', $ServiceUser, $PlainPass)
+
+    # Configurar logs (stdout + stderr → archivos, rotación cada 5 MB)
+    $LogDir = "$TargetBackend\logs"
+    if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Force -Path $LogDir | Out-Null }
+    Invoke-Nssm @('set', $ServiceName, 'AppStdout',       "$LogDir\backend-out.log")
+    Invoke-Nssm @('set', $ServiceName, 'AppStderr',       "$LogDir\backend-error.log")
+    Invoke-Nssm @('set', $ServiceName, 'AppRotateFiles',  '1')
+    Invoke-Nssm @('set', $ServiceName, 'AppRotateOnline', '1')
+    Invoke-Nssm @('set', $ServiceName, 'AppRotateBytes',  '5242880')
+
     Start-Service -Name $ServiceName -ErrorAction Stop
     Write-Host "  -> Backend en línea y conectado al Active Directory." -ForegroundColor Green
 }
 catch {
-    Write-Host "[ERROR] El backend se copió, pero falló al crear o iniciar el servicio." -ForegroundColor Red
+    Write-Host "[ERROR] Falló la instalación del servicio: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "  -> Limpiando servicio incompleto..." -ForegroundColor Yellow
+    if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+        Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+        & $NssmTarget remove $ServiceName confirm 2>$null
+    }
+    Write-Host "Verifica el usuario/contraseña e intenta de nuevo." -ForegroundColor Yellow
     Exit
 }
 
