@@ -38,12 +38,6 @@ module.exports = {
         promptForCredentialsOnClient: process.env.RDP_PROMPT_FOR_CREDENTIALS_ON_CLIENT !== 'false',
         useMultimon: process.env.RDP_USE_MULTIMON === 'true',
         spanMonitors: process.env.RDP_SPAN_MONITORS === 'true',
-        signing: {
-            enabled: process.env.RDP_SIGN_ENABLED === 'true',
-            required: process.env.RDP_SIGN_REQUIRED === 'true',
-            thumbprint: (process.env.RDP_SIGN_CERT_THUMBPRINT || '').replaceAll(/[^a-fA-F0-9]/g, ''),
-            toolPath: process.env.RDP_SIGN_TOOL_PATH || 'rdpsign.exe',
-        },
     },
 
     simulation: {

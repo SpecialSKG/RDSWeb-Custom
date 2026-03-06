@@ -181,7 +181,7 @@ async function getAppsForUser(user) {
       $all = Get-RDRemoteApp -ConnectionBroker '${config.rdcb.server}' -ErrorAction Stop;
       $visible = @($all | Where-Object { $_.ShowInWebAccess -eq $true });
       if ($visible.Count -gt 0) { $visible | Select-Object DisplayName, Alias, FolderName, CollectionName, UserGroups | ConvertTo-Json -Compress -Depth 5 } else { '[]' }
-    `.replace(/\n\s*/g, ' ').trim();
+    `.replaceAll(/\n\s*/g, ' ').trim();
 
     console.log(`[rdcbService] Ejecutando PowerShell contra ${config.rdcb.server}...`);
 

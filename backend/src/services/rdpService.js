@@ -45,20 +45,20 @@ function generateRemoteAppRdp(app, user, isPrivate = true) {
         `full address:s:${fullAddress}`,
         `alternate shell:s:${app.rdpPath}`,
         `remoteapplicationprogram:s:${app.rdpPath}`,
-        `gatewayhostname:s:${config.rdGateway.hostname}`,
+        // gatewayhostname debe coincidir con el servidor que publica las apps (RDCB/RDSH)
+        `gatewayhostname:s:${fullAddress}`,
         `remoteapplicationname:s:${app.name}`,
         'remoteapplicationcmdline:s:',
         `workspace id:s:${fullAddress}`,
         'use redirection server name:i:1',
-        `alternate full address:s:${fullAddress}`,
-        `username:s:${username}`,
-        `session timeout:i:${sessionTimeout * 60}`,
-        'autoreconnection enabled:i:1',
     ];
 
+    // loadbalanceinfo va antes de alternate full address (orden requerido por el cliente RDP)
     if (collectionName) {
         lines.push(`loadbalanceinfo:s:tsv://MS Terminal Services Plugin.1.${collectionName}`);
     }
+
+    lines.push(`alternate full address:s:${fullAddress}`);
 
     return lines.join('\r\n');
 }

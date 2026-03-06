@@ -1,8 +1,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/authenticate');
 const { getAppsForUser } = require('../services/rdcbService');
-const { generateRemoteAppRdp, generateDesktopRdp, signRdpContentDetailed } = require('../services/rdpService');
-const config = require('../config');
+const { generateRemoteAppRdp, generateDesktopRdp } = require('../services/rdpService');
 
 const router = express.Router();
 
@@ -24,26 +23,9 @@ router.get('/:alias', authenticate, async (req, res) => {
 
         let rdpContent;
         if (resource.rdpPath === null) {
-            // Es un escritorio remoto
             rdpContent = generateDesktopRdp(resource, req.user);
         } else {
-            // Es una RemoteApp
             rdpContent = generateRemoteAppRdp(resource, req.user, isPrivate);
-        }
-
-        const signResult = signRdpContentDetailed(rdpContent);
-        rdpContent = signResult.content;
-
-        res.setHeader('X-Rdp-Sign-Enabled', String(config.rdp.signing.enabled));
-        res.setHeader('X-Rdp-Signed', signResult.signed ? '1' : '0');
-        res.setHeader('X-Rdp-Sign-Reason', signResult.reason || 'UNKNOWN');
-
-        if (config.rdp.signing.required && !signResult.signed) {
-            return res.status(500).json({
-                error: 'No se pudo firmar el archivo RDP',
-                code: 'RDP_SIGN_FAILED',
-                reason: signResult.reason,
-            });
         }
 
         const fileName = `${resource.alias || 'launch'}.rdp`;
