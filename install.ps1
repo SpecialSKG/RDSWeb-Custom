@@ -21,7 +21,7 @@ $SourceBackend = "$SourceDir\backend"
 $SourceFrontend = "$SourceDir\frontend"
 
 # Puedes ajustar estas rutas destino si en tu IIS se llaman diferente
-$TargetBackend = "C:\inetpub\wwwroot\backend"
+$TargetBackend  = "C:\inetpub\wwwroot\backend"
 $TargetFrontend = "C:\inetpub\wwwroot\frontend"
 
 $ServiceName = "RDSWeb"
@@ -41,6 +41,41 @@ if (-not (Test-Path $SourceBackend) -or -not (Test-Path $SourceFrontend)) {
     Write-Host "El script espera encontrar las carpetas 'backend' y 'frontend' junto a este archivo." -ForegroundColor Yellow
     Read-Host "Presiona Enter para salir..."
     Exit
+}
+
+# =====================================================================
+# FASE 0: INSTALACIÓN DE PRERREQUISITOS DE IIS (URL Rewrite & ARR)
+# =====================================================================
+Write-Host "`n[FASE 0] Verificando Prerrequisitos de IIS..." -ForegroundColor Cyan
+
+$PrereqsDir = "$SourceDir\prereqs"
+$RewriteDll = "$env:windir\System32\inetsrv\rewrite.dll"
+$ArrDll     = "$env:windir\System32\inetsrv\requestRouter.dll"
+$AppCmd     = "$env:windir\System32\inetsrv\appcmd.exe"
+
+# 1. Instalar URL Rewrite
+if (-not (Test-Path $RewriteDll)) {
+    Write-Host "  -> Instalando IIS URL Rewrite 2.1 silenciosamente..." -ForegroundColor Yellow
+    $RewriteMsi = "$PrereqsDir\rewrite_amd64.msi"
+    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$RewriteMsi`" /qn /norestart" -Wait -NoNewWindow
+} else {
+    Write-Host "  -> URL Rewrite ya está instalado." -ForegroundColor Green
+}
+
+# 2. Instalar ARR 3.0
+if (-not (Test-Path $ArrDll)) {
+    Write-Host "  -> Instalando IIS Application Request Routing (ARR) silenciosamente..." -ForegroundColor Yellow
+    $ArrMsi = "$PrereqsDir\requestRouter_amd64.msi"
+    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$ArrMsi`" /qn /norestart" -Wait -NoNewWindow
+} else {
+    Write-Host "  -> ARR 3.0 ya está instalado." -ForegroundColor Green
+}
+
+# 3. Activar el Proxy Inverso a nivel de Servidor (CRÍTICO)
+# Aunque ARR se instale, la función de Proxy Inverso viene apagada por defecto.
+if (Test-Path $AppCmd) {
+    Write-Host "  -> Asegurando que la función de Proxy Inverso esté habilitada en IIS..."
+    & $AppCmd set config -section:system.webServer/proxy /enabled:"True" /commit:apphost | Out-Null
 }
 
 # 4. CREDENCIALES (Para el Backend)
@@ -99,20 +134,19 @@ catch {
 }
 
 # =====================================================================
-# FASE 3: DESPLIEGUE DEL FRONTEND (ANGULAR en IIS)
+# FASE 3: DESPLIEGUE DEL FRONTEND (Angular en IIS)
 # =====================================================================
 Write-Host "`n[FASE 3] Desplegando Frontend (Angular)..." -ForegroundColor Cyan
 
 try {
-    if (-not (Test-Path $TargetFrontend)) { 
+    if (-not (Test-Path $TargetFrontend)) {
         Write-Host "  -> Creando directorio de IIS en $TargetFrontend..."
-        New-Item -ItemType Directory -Force -Path $TargetFrontend | Out-Null 
+        New-Item -ItemType Directory -Force -Path $TargetFrontend | Out-Null
     }
 
     Write-Host "  -> Copiando archivos compilados de Angular..."
     Copy-Item -Path "$SourceFrontend\*" -Destination $TargetFrontend -Recurse -Force -ErrorAction Stop
     Write-Host "  -> Frontend actualizado con éxito." -ForegroundColor Green
-
 }
 catch {
     Write-Host "[ERROR] Falló la copia del frontend." -ForegroundColor Red
@@ -128,6 +162,7 @@ Write-Host " ¡INSTALACIÓN COMPLETADA CON ÉXITO!" -ForegroundColor Green
 Write-Host "========================================================" -ForegroundColor Green
 Write-Host "RECORDATORIOS PARA INFRAESTRUCTURA:"
 Write-Host "1. Validar que la carpeta de Angular ($TargetFrontend) esté apuntada correctamente en el IIS."
-Write-Host "2. Validar que el archivo .env en $TargetBackend tenga los datos correctos."
+Write-Host "2. Copia el archivo .env con la configuración real a: $TargetBackend\.env"
+Write-Host "3. Verifica que IIS tenga habilitado el Proxy Inverso (FASE 0 lo hace automáticamente)."
 Write-Host ""
 Read-Host "Presiona Enter para cerrar esta ventana..."
