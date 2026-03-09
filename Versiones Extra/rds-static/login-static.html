@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login RDS - versión estática</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="background-wrapper"></div>
+  <main class="page-shell">
+    <nav class="top-nav">
+      <a class="active-link" href="login-static.html">Login</a>
+      <a href="apps-static.html">Aplicaciones</a>
+      <a href="desktops-static.html">Escritorios</a>
+    </nav>
+
+    <section class="panel-card" style="max-width:720px;margin:0 auto;">
+      <div class="page-title">
+        <h1>Acceso web de Escritorio remoto</h1>
+        <p>Versión HTML plana basada en la estructura de <code>login.aspx</code>.</p>
+      </div>
+
+      <form>
+        <div class="form-grid">
+          <label for="domainUser">Dominio\nombreDeUsuario</label>
+          <input id="domainUser" type="text" placeholder="EMPRESA\usuario" autocomplete="username">
+
+          <label for="userPass">Contraseña</label>
+          <input id="userPass" type="password" placeholder="••••••••" autocomplete="current-password">
+
+          <label>Seguridad</label>
+          <div class="inline-options">
+            <label><input type="radio" name="machineType" checked> Éste es un equipo privado</label>
+            <label><input type="radio" name="machineType"> Éste es un equipo público o compartido</label>
+          </div>
+        </div>
+
+        <div class="note-box">
+          Esta versión ya no hace autenticación real, no genera ticket de formulario ni procesa valores ocultos del backend.
+        </div>
+
+        <div class="action-row">
+          <button class="btn-secondary" type="reset">Limpiar</button>
+          <a class="btn-primary" href="apps-static.html" style="text-decoration:none;">Entrar</a>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

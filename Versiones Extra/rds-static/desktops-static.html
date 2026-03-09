@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conectarse a un equipo remoto - versión estática</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="background-wrapper"></div>
+  <main class="page-shell">
+    <nav class="top-nav">
+      <a href="login-static.html">Login</a>
+      <a href="apps-static.html">Aplicaciones</a>
+      <a class="active-link" href="desktops-static.html">Escritorios</a>
+    </nav>
+
+    <section class="panel-card">
+      <div class="page-title">
+        <h1>Conectarse a un equipo remoto</h1>
+        <p>Versión HTML plana basada en la estructura de <code>Desktops.aspx</code>.</p>
+      </div>
+
+      <div class="form-grid">
+        <label for="machineName">Conectar a</label>
+        <input id="machineName" type="text" placeholder="PC-REMOTO-01 o servidor.contoso.local">
+
+        <label for="comboResolution">Tamaño del escritorio remoto</label>
+        <select id="comboResolution">
+          <option>Pantalla completa</option>
+          <option>800 x 600 píxeles</option>
+          <option>1024 x 768 píxeles</option>
+          <option>1280 x 1024 píxeles</option>
+          <option>1600 x 1200 píxeles</option>
+        </select>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <h2 class="subsection-title">Dispositivos y recursos</h2>
+      <div class="check-list">
+        <label><input type="checkbox" checked> Impresoras</label>
+        <label><input type="checkbox" checked> Escritorio / Portapapeles</label>
+        <label><input type="checkbox"> Unidades</label>
+        <label><input type="checkbox"> Dispositivos Plug and Play</label>
+        <label><input type="checkbox"> Puertos especiales</label>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <h2 class="subsection-title">Opciones adicionales</h2>
+      <div class="form-grid">
+        <label for="comboAudio">Sonido de equipo remoto</label>
+        <select id="comboAudio">
+          <option>Traer a este equipo</option>
+          <option>Dejar en el equipo remoto</option>
+          <option>No reproducir</option>
+        </select>
+
+        <label for="comboKeyboard">Métodos abreviados de teclado</label>
+        <select id="comboKeyboard">
+          <option>En el equipo local</option>
+          <option>En el equipo remoto</option>
+          <option selected>Solo en modo de pantalla completa</option>
+        </select>
+
+        <label for="comboPerformance">Rendimiento</label>
+        <select id="comboPerformance">
+          <option>Módem (56 Kbps)</option>
+          <option>Banda ancha a baja velocidad</option>
+          <option>Satélite</option>
+          <option>Banda ancha a alta velocidad</option>
+          <option>WAN</option>
+          <option selected>LAN</option>
+        </select>
+      </div>
+
+      <div class="note-box">
+        Esta página estática conserva el formulario visual, pero ya no ejecuta ActiveX, no crea un archivo RDP real y no toma datos desde ASP.NET.
+      </div>
+
+      <div class="action-row">
+        <button class="btn-secondary" type="button">Opciones</button>
+        <button class="btn-primary" id="btn-connect-desktop" type="button">Conectar</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

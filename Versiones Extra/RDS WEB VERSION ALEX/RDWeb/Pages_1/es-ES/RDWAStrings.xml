@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<rdwastr:strings xmlns:rdwastr="urn:microsoft.com:rdwastrings">
+  <string id="PageTitle">Acceso web de RD</string>
+  <string id="NoScriptWarning">
+    <p id="NoScript1">Acceso web de RD requiere JScript. Este explorador web no admite JScript o bloquea los scripts.</p>
+    <br/>
+    <br/>
+    <p id="NoScript2">Para averiguar si el explorador admite JScript o para permitir la ejecución de scripts, consulte la Ayuda en pantalla del explorador.</p>
+  </string>
+  <string id="HeadingRDWA">Acceso web de RD</string>
+  <string id="HeadingApplicationName">Conexión de RemoteApp y Escritorio</string>
+  <string id="Help">Ayuda</string>
+  <string id="SignOut">Cerrar sesión</string>
+  <string id="SearchingForApps">Buscando programas RemoteApp disponibles... </string>
+  <string id="CurrentFolder">Carpeta actual: </string>
+  <string id="ParentFolder">Subir</string>
+  <string id="OptimizeMyExperience">Optimizar mi experiencia para una red LAN al establecer la conexión con el equipo o una aplicación.</string>
+  <string id="PrivateComputer">Uso un equipo privado que se ajusta a la directiva de seguridad de mi organización.</string>
+  <string id="MoreInformation">Más información...</string>
+  <string id="PrivateMore">Si selecciona esta opción, podrá guardar sus credenciales para usarlas en un futuro cuando se conecte a estos programas. Antes de seleccionar esta opción, asegúrese de que la directiva de seguridad de su organización le permite guardar las credenciales.</string>
+  <string id="HideMore">Ocultar información adicional...</string>
+  <string id="PrivacyLink">Privacidad</string>
+</rdwastr:strings>

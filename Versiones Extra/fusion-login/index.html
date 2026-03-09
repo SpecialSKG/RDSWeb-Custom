@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PORTAL-RDS | Inicio de sesión</title>
+  <meta name="description" content="Pantalla de inicio de sesión del Portal RDS">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <div id="preloader" class="preloader" aria-hidden="true">
+    <div class="preloader-box">
+      <img src="loading-bar.svg" alt="Cargando" class="preloader-logo">
+      <p class="preloader-text">Cargando sistema...</p>
+    </div>
+  </div>
+
+  <div class="bg-glow bg-glow--one"></div>
+  <div class="bg-glow bg-glow--two"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <main class="page">
+    <section class="login-card" aria-label="Acceso al sistema PORTAL-RDS">
+      <div class="panel panel--left">
+        <div class="panel__inner panel__inner--form">
+          <header class="hero-title">
+            <span class="hero-badge">Acceso seguro</span>
+            <h1>Portal - RDS</h1>
+            <p>Acceso remoto a aplicaciones virtualizadas</p>
+          </header>
+
+          <div class="form-wrap">
+            <div class="form-head">
+              <h2>Inicio de sesión</h2>
+              <p>Ingresa con tu usuario institucional para acceder al portal.</p>
+            </div>
+
+            <form class="login-form" id="loginForm" data-redirect="apps/apps.html" novalidate>
+              <label class="field">
+                <span class="field__label">Usuario</span>
+                <input type="text" name="username" id="username" placeholder="Dominio\usuario o correo institucional" autocomplete="username" required>
+              </label>
+
+              <label class="field field--password">
+                <span class="field__label">Contraseña</span>
+                <input type="password" name="password" id="password" placeholder="Ingrese su contraseña" autocomplete="current-password" required>
+                <button class="toggle-password" type="button" id="togglePassword" aria-label="Mostrar contraseña" aria-pressed="false">
+                  <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+                    <circle cx="12" cy="12" r="3.2" />
+                    <path class="eye-slash" d="M4 4l16 16" />
+                  </svg>
+                </button>
+              </label>
+
+              <div class="form-meta">
+                <span class="meta-pill">Entorno simulado</span>
+                <span class="meta-text">El botón de ingresar enviará a la vista de aplicaciones.</span>
+              </div>
+
+              <button class="btn-submit" type="submit">
+                <span>INGRESAR</span>
+              </button>
+
+              <p class="form-message" id="formMessage" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel panel--right">
+        <div class="panel__inner panel__inner--info">
+          <div class="brand-block">
+            <div class="gov-brand">
+              <img src="Logo_animado_v4.svg" alt="Gobierno de El Salvador" class="gov-brand__seal">
+            </div>
+          </div>
+
+          <div class="notice">
+            <h2>Bienvenido</h2>
+            <p>Recuerda iniciar sesión</p>
+            <p>con las credenciales de tu usuario institucional.</p>
+          </div>
+
+          <footer class="support">
+            <strong>DINAFI-USC</strong>
+            <span>Portal institucional de acceso remoto</span>
+          </footer>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

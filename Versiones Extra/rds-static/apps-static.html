@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RDS Web Access | Portal Empresarial</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="background-wrapper"></div>
+
+    <main class="app-container">
+        <section id="dashboard-view" class="view active" style="display:block;opacity:1;transform:none;">
+            <header class="dashboard-header">
+                <div class="header-left">
+                    <div class="logo-box small">
+                        <i class="ph ph-squares-four"></i>
+                    </div>
+                    <div>
+                        <h1>Tus Aplicaciones</h1>
+                        <p>Versión HTML plana</p>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <a href="login-static.html" class="btn-icon" title="Volver al login">
+                        <i class="ph ph-arrow-left"></i>
+                    </a>
+                    <a href="desktops-static.html" class="btn-icon" title="Ir a escritorios">
+                        <i class="ph ph-desktop"></i>
+                    </a>
+                </div>
+            </header>
+
+            <div class="apps-grid">
+                <a href="#word.rdp" class="app-card" data-app="word">
+                    <div class="app-icon-wrapper word-theme"><i class="ph-fill ph-file-doc"></i></div>
+                    <span class="app-name">Word 2019</span>
+                    <span class="app-publisher">Microsoft Corporation</span>
+                </a>
+
+                <a href="#excel.rdp" class="app-card" data-app="excel">
+                    <div class="app-icon-wrapper excel-theme"><i class="ph-fill ph-file-xls"></i></div>
+                    <span class="app-name">Excel 2019</span>
+                    <span class="app-publisher">Microsoft Corporation</span>
+                </a>
+
+                <a href="#powerpoint.rdp" class="app-card" data-app="powerpoint">
+                    <div class="app-icon-wrapper powerpoint-theme"><i class="ph-fill ph-presentation"></i></div>
+                    <span class="app-name">PowerPoint 2019</span>
+                    <span class="app-publisher">Microsoft Corporation</span>
+                </a>
+
+                <a href="#outlook.rdp" class="app-card" data-app="outlook">
+                    <div class="app-icon-wrapper outlook-theme"><i class="ph-fill ph-envelope-simple"></i></div>
+                    <span class="app-name">Outlook 2019</span>
+                    <span class="app-publisher">Microsoft Corporation</span>
+                </a>
+
+                <a href="#desktop.rdp" class="app-card" data-app="desktop">
+                    <div class="app-icon-wrapper desktop-theme"><i class="ph-fill ph-desktop"></i></div>
+                    <span class="app-name">Escritorio Corporativo</span>
+                    <span class="app-publisher">Full Desktop Experience</span>
+                </a>
+            </div>
+
+            <footer class="dashboard-footer">
+                <p>Versión estática: los enlaces RDP están simulados.</p>
+            </footer>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

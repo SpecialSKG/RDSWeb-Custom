@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RDS Web Access | Portal Empresarial</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Iconos Phosphor Icons para un look muy limpio -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+
+    <!-- Fondo Animado Abstracto -->
+    <div class="background-wrapper">
+        <div class="glow glow-1"></div>
+        <div class="glow glow-2"></div>
+        <div class="glow glow-3"></div>
+    </div>
+
+    <main class="app-container">
+        
+        <!-- VISTA DE LOGIN -->
+        <section id="login-view" class="view active">
+            <div class="glass-card login-card">
+                <div class="login-header">
+                    <div class="logo-box">
+                        <i class="ph ph-shield-check"></i>
+                    </div>
+                    <h2>Secure Workspace</h2>
+                    <p>Acceso a Remote Desktop Services</p>
+                </div>
+                
+                <form id="login-form">
+                    <div class="input-group">
+                        <label for="username">Dominio\Usuario</label>
+                        <div class="input-wrapper">
+                            <i class="ph ph-user"></i>
+                            <input type="text" id="username" placeholder="ej. EMPRESA\usuario" required autocomplete="username">
+                        </div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="password">Contraseña</label>
+                        <div class="input-wrapper">
+                            <i class="ph ph-lock-key"></i>
+                            <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+                        </div>
+                    </div>
+
+                    <div class="options-group">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="remember">
+                            <span class="checkmark"></span>
+                            Equipo público u orgánico
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn-primary" id="btn-login">
+                        <span class="btn-text">Iniciar Sesión</span>
+                        <div class="loader-spinner" style="display: none;"></div>
+                    </button>
+                    
+                    <div class="security-note">
+                        <i class="ph ph-lock"></i> Conexión cifrada SSL/TLS (HSTS activo)
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- VISTA DE DASHBOARD -->
+        <section id="dashboard-view" class="view">
+            <header class="dashboard-header">
+                <div class="header-left">
+                    <div class="logo-box small">
+                        <i class="ph ph-squares-four"></i>
+                    </div>
+                    <div>
+                        <h1>Tus Aplicaciones</h1>
+                        <p>Enterprise RDS Cloud</p>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="user-profile">
+                        <div class="avatar"><i class="ph ph-user"></i></div>
+                        <div class="user-info">
+                            <span class="user-name" id="display-name">Usuario</span>
+                            <span class="user-role">Conectado</span>
+                        </div>
+                    </div>
+                    <button id="btn-logout" class="btn-icon" title="Cerrar Sesión">
+                        <i class="ph ph-sign-out"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="apps-grid">
+                <!-- App: Word -->
+                <a href="#word.rdp" class="app-card" data-app="word">
+                    <div class="app-icon-wrapper word-theme">
+                        <i class="ph-fill ph-file-doc"></i>
+                    </div>
+                    <span class="app-name">Word 2019</span>
+                    <span class="app-publisher">Microsoft Corporation</span>
+                </a>
+
+                <!-- App: Excel -->
+                <a href="#excel.rdp" class="app-card" data-app="excel">
+                    <div class="app-icon-wrapper excel-theme">
+                        <i class="ph-fill ph-file-xls"></i>
+                    </div>
+                    <span class="app-name">Excel 2019</span>
+                    <span class="app-publisher">Microsoft Corporation</span>
+                </a>
+
+                <!-- App: PowerPoint -->
+                <a href="#powerpoint.rdp" class="app-card" data-app="powerpoint">
+                    <div class="app-icon-wrapper powerpoint-theme">
+                        <i class="ph-fill ph-presentation"></i>
+                    </div>
+                    <span class="app-name">PowerPoint 2019</span>
+                    <span class="app-publisher">Microsoft Corporation</span>
+                </a>
+
+                <!-- App: Outlook -->
+                <a href="#outlook.rdp" class="app-card" data-app="outlook">
+                    <div class="app-icon-wrapper outlook-theme">
+                        <i class="ph-fill ph-envelope-simple"></i>
+                    </div>
+                    <span class="app-name">Outlook 2019</span>
+                    <span class="app-publisher">Microsoft Corporation</span>
+                </a>
+
+                <!-- App: Escritorio Remoto -->
+                <a href="#desktop.rdp" class="app-card" data-app="desktop">
+                    <div class="app-icon-wrapper desktop-theme">
+                        <i class="ph-fill ph-desktop"></i>
+                    </div>
+                    <span class="app-name">Escritorio Corporativo</span>
+                    <span class="app-publisher">Full Desktop Experience</span>
+                </a>
+            </div>
+            
+            <footer class="dashboard-footer">
+                <p>Protegido por políticas de seguridad corporativas. Cualquier uso no autorizado será registrado.</p>
+            </footer>
+        </section>
+
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
