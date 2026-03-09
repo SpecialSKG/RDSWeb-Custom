@@ -1,41 +1,45 @@
 <div>
-    <nav>
-        <span>Escritorio Remoto</span>
-        <input placeholder="Buscar aplicaciones..." [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" />
-        <span>{{ user()?.displayName }}</span>
-        <button (click)="toggleTheme()">{{ isDark ? 'Modo claro' : 'Modo oscuro' }}</button>
-        <button (click)="logout()">Cerrar sesión</button>
-    </nav>
+  <nav>
+    <span>Escritorio Remoto</span>
+    <input
+      placeholder="Buscar aplicaciones..."
+      [(ngModel)]="searchQuery"
+      (ngModelChange)="onSearch()"
+    />
+    <span>{{ user()?.displayName }}</span>
+    <button (click)="toggleTheme()">{{ isDark() ? 'Modo claro' : 'Modo oscuro' }}</button>
+    <button (click)="logout()">Cerrar sesión</button>
+  </nav>
 
-    <main>
-        @if (loading) {
-            <p>Cargando aplicaciones...</p>
-        } @else if (error) {
-            <div>
-                <h3>Error al cargar las aplicaciones</h3>
-                <p>{{ error }}</p>
-                <button (click)="loadApps()">Reintentar</button>
-            </div>
-        } @else {
-            @for (group of filteredGroups; track group.name) {
-                <section>
-                    <h2>{{ group.name }} ({{ group.apps.length }})</h2>
-                    <ul>
-                        @for (app of group.apps; track app.alias) {
-                            <li (click)="launch(app.alias)">
-                                <strong>{{ app.name }}</strong> —
-                                <small>{{ app.remoteServer }}</small>
-                            </li>
-                        }
-                    </ul>
-                </section>
-            } @empty {
-                @if (searchQuery) {
-                    <p>No se encontraron aplicaciones para "{{ searchQuery }}"</p>
-                } @else {
-                    <p>No tienes RemoteApps asignadas en este momento.</p>
-                }
+  <main>
+    @if (loading()) {
+      <p>Cargando aplicaciones...</p>
+    } @else if (error()) {
+      <div>
+        <h3>Error al cargar las aplicaciones</h3>
+        <p>{{ error() }}</p>
+        <button (click)="loadApps()">Reintentar</button>
+      </div>
+    } @else {
+      @for (group of filteredGroups; track group.name) {
+        <section>
+          <h2>{{ group.name }} ({{ group.apps.length }})</h2>
+          <ul>
+            @for (app of group.apps; track app.alias) {
+              <li (click)="launch(app.alias)" (keydown.enter)="launch(app.alias)">
+                <strong>{{ app.name }}</strong> —
+                <small>{{ app.remoteServer }}</small>
+              </li>
             }
+          </ul>
+        </section>
+      } @empty {
+        @if (searchQuery()) {
+          <p>No se encontraron aplicaciones para "{{ searchQuery() }}"</p>
+        } @else {
+          <p>No tienes RemoteApps asignadas en este momento.</p>
         }
-    </main>
+      }
+    }
+  </main>
 </div>

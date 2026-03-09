@@ -1,38 +1,41 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
 export interface RemoteApp {
-    alias: string;
-    name: string;
-    rdpPath: string | null;
-    remoteServer: string;
-    folderName: string;
-    iconIndex: number;
+  alias: string;
+  name: string;
+  rdpPath: string | null;
+  remoteServer: string;
+  folderName: string;
+  iconIndex: number;
+}
+
+export interface AppResponse {
+  ok: boolean;
+  apps: RemoteApp[];
+  desktops: RemoteApp[];
 }
 
 @Injectable({ providedIn: 'root' })
 export class AppsService {
-    constructor(private http: HttpClient) { }
+  private readonly http = inject(HttpClient);
 
-    getApps() {
-        return this.http.get<{ ok: boolean; apps: RemoteApp[]; desktops: RemoteApp[] }>(
-            `${environment.apiUrl}/apps`,
-            { withCredentials: true }
-        );
-    }
+  getApps() {
+    return this.http.get<AppResponse>(`${environment.apiUrl}/apps`);
+  }
 
-    getLaunchUrl(alias: string): string {
-        return `${environment.apiUrl}/launch/${alias}`;
-    }
+  getLaunchUrl(alias: string): string {
+    return `${environment.apiUrl}/launch/${alias}`;
+  }
 
-    launchApp(alias: string): void {
-        // Crear link temporal y hacer click para descarga del .rdp
-        const a = document.createElement('a');
-        a.href = this.getLaunchUrl(alias);
-        a.download = `${alias}.rdp`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    }
+  launchApp(alias: string): void {
+    // Crear link temporal y hacer click para descarga del .rdp
+    const a = document.createElement('a');
+    a.href = this.getLaunchUrl(alias);
+    a.download = `${alias}.rdp`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
 }
