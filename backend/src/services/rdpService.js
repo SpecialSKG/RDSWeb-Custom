@@ -73,6 +73,7 @@ function generateRemoteAppRdp(app, user, isPrivate = true) {
 function generateDesktopRdp(desktop, user) {
     const domain = user.domain || config.ldap.domain;
     const username = `${domain}\\${user.username}`;
+    const fullAddress = desktop.remoteServer || config.rdcb.server;
 
     return [
         'screen mode id:i:2',
@@ -81,10 +82,10 @@ function generateDesktopRdp(desktop, user) {
         'desktopheight:i:1080',
         'session bpp:i:32',
         'compression:i:1',
-        `full address:s:${desktop.remoteServer || config.rdcb.server}`,
-        `gatewayhostname:s:${config.rdGateway.hostname}`,
+        `full address:s:${fullAddress}`,
+        `gatewayhostname:s:${fullAddress}`,
         'gatewayusagemethod:i:1',
-        'gatewaycredentialssource:i:4',
+        `gatewaycredentialssource:i:${config.rdp.gatewayCredentialsSource}`,
         'gatewayprofileusagemethod:i:1',
         `username:s:${username}`,
         'authentication level:i:3',

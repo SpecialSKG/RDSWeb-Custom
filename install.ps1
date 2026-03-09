@@ -46,9 +46,52 @@ if (-not (Test-Path $SourceBackend) -or -not (Test-Path $SourceFrontend)) {
 }
 
 # =====================================================================
-# FASE 0: INSTALACIÓN DE PRERREQUISITOS DE IIS (URL Rewrite & ARR)
+# FASE 1: CREDENCIALES
 # =====================================================================
-Write-Host "`n[FASE 0] Verificando Prerrequisitos de IIS..." -ForegroundColor Cyan
+Write-Host "`n[FASE 1/4] Configuración de Credenciales" -ForegroundColor Cyan
+
+$ServiceUser = "$env:USERDOMAIN\$env:USERNAME"
+Write-Host "  -> Usando cuenta actual: $ServiceUser" -ForegroundColor Green
+
+# Solicitar y verificar contraseña contra el dominio antes de continuar
+Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+$verified = $false
+$attempts = 0
+do {
+    $SecurePass = Read-Host "Contraseña de $ServiceUser" -AsSecureString
+    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePass)
+    $PlainPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+
+    try {
+        $ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext(
+            [System.DirectoryServices.AccountManagement.ContextType]::Domain,
+            $env:USERDNSDOMAIN
+        )
+        if ($ctx.ValidateCredentials($env:USERNAME, $PlainPass)) {
+            Write-Host "  -> Credenciales verificadas correctamente." -ForegroundColor Green
+            $verified = $true
+        } else {
+            $attempts++
+            Write-Host "  [!] Contraseña incorrecta. Intento $attempts de 3." -ForegroundColor Red
+        }
+    } catch {
+        Write-Host "  [!] No se pudo verificar contra el dominio: $($_.Exception.Message)" -ForegroundColor DarkYellow
+        Write-Host "  [!] Continuando sin verificación (se detectará al iniciar el servicio)." -ForegroundColor DarkYellow
+        $verified = $true  # deja pasar si el DC no responde
+    }
+
+    if ($attempts -ge 3) {
+        Write-Host "[ERROR] Demasiados intentos fallidos. Abortando." -ForegroundColor Red
+        Read-Host "Presiona Enter para salir..."
+        Exit
+    }
+} while (-not $verified)
+
+# =====================================================================
+# FASE 2: INSTALACIÓN DE PRERREQUISITOS DE IIS (URL Rewrite & ARR)
+# =====================================================================
+Write-Host "`n[FASE 2/4] Verificando Prerrequisitos de IIS..." -ForegroundColor Cyan
 
 $PrereqsDir = "$SourceDir\prereqs"
 $RewriteDll = "$env:windir\System32\inetsrv\rewrite.dll"
@@ -109,27 +152,12 @@ Write-Host "  -> Reiniciando IIS para aplicar cambios..." -ForegroundColor Yello
 & iisreset /noforce | Out-Null
 Write-Host "  -> IIS reiniciado." -ForegroundColor Green
 
-# 4. CREDENCIALES (Para el Backend)
-Write-Host "`n[FASE 1] Configuración de Credenciales" -ForegroundColor Cyan
-Write-Host "El backend necesita una cuenta del dominio (Ej: LAB-MH\usr_admin) para consultar RDS." -ForegroundColor Yellow
-
-do {
-    $ServiceUser = Read-Host "Usuario del dominio (formato: DOMINIO\\usuario)"
-    if ($ServiceUser -notmatch '\\|@') {
-        Write-Host "  [!] Debes incluir el dominio. Ejemplo: LAB-MH\\usr_admin" -ForegroundColor Red
-    }
-} while ($ServiceUser -notmatch '\\|@')
-
-$SecurePass = Read-Host "Contraseña" -AsSecureString
-
-$BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePass)
-$PlainPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
 
 
 # =====================================================================
-# FASE 2: DESPLIEGUE DEL BACKEND (EXPRESS)
+# FASE 3: DESPLIEGUE DEL BACKEND (EXPRESS)
 # =====================================================================
-Write-Host "`n[FASE 2] Desplegando Backend..." -ForegroundColor Cyan
+Write-Host "`n[FASE 3/4] Desplegando Backend..." -ForegroundColor Cyan
 
 # 2.1 Detener y eliminar servicio previo (reinstalación limpia)
 if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
@@ -207,9 +235,9 @@ catch {
 }
 
 # =====================================================================
-# FASE 3: DESPLIEGUE DEL FRONTEND (Angular en IIS)
+# FASE 4: DESPLIEGUE DEL FRONTEND (Angular en IIS)
 # =====================================================================
-Write-Host "`n[FASE 3] Desplegando Frontend (Angular)..." -ForegroundColor Cyan
+Write-Host "`n[FASE 4/4] Desplegando Frontend (Angular)..." -ForegroundColor Cyan
 
 try {
     if (-not (Test-Path $TargetFrontend)) {
@@ -236,6 +264,6 @@ Write-Host "========================================================" -Foregroun
 Write-Host "RECORDATORIOS PARA INFRAESTRUCTURA:"
 Write-Host "1. Validar que la carpeta de Angular ($TargetFrontend) esté apuntada correctamente en el IIS."
 Write-Host "2. Copia el archivo .env con la configuración real a: $TargetBackend\.env"
-Write-Host "3. Verifica que IIS tenga habilitado el Proxy Inverso (FASE 0 lo hace automáticamente)."
+Write-Host "3. Verifica que IIS tenga habilitado el Proxy Inverso (FASE 2 lo hace automáticamente)."
 Write-Host ""
 Read-Host "Presiona Enter para cerrar esta ventana..."

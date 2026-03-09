@@ -28,10 +28,6 @@ module.exports = {
         server: process.env.RDCB_SERVER || 'SRV-APPS.LAB-MH.LOCAL',
     },
 
-    rdGateway: {
-        hostname: process.env.RDGATEWAY_HOSTNAME || 'rdgateway.lab-mh.local',
-    },
-
     rdp: {
         gatewayCredentialsSource: toInt(process.env.RDP_GATEWAY_CREDENTIAL_SOURCE, 0),
         promptCredentialOnce: process.env.RDP_PROMPT_CREDENTIAL_ONCE !== 'false',
@@ -42,7 +38,5 @@ module.exports = {
 
     simulation: {
         enabled: process.env.SIMULATION_MODE === 'true',
-        user: process.env.SIMULATION_USER || 'administrador',
-        pass: process.env.SIMULATION_PASS || 'Admin1234!',
     },
 };
