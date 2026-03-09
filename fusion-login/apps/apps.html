@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portal de aplicaciones remotas | Aplicaciones</title>
+  <meta name="description" content="Vista estática del portal de aplicaciones remotas.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cinzel:wght@500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="apps.css">
+  <script defer src="apps.js"></script>
+</head>
+
+<body class="apps-page-body">
+  <div class="bg-glow bg-glow--one"></div>
+  <div class="bg-glow bg-glow--two"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <main class="page apps-page">
+    <section class="apps-shell" aria-label="Aplicaciones disponibles">
+      <aside class="apps-sidebar">
+        <div class="apps-sidebar__inner">
+          <!-- <span class="apps-badge">Vista de demostración</span> -->
+
+          <div class="apps-sidebar__hero">
+            <h1>Aplicaciones remotas</h1>
+            <p>Selecciona una aplicación para iniciar una sesión remota simulada.</p>
+          </div>
+
+          <!-- <div class="apps-sidebar__panel">
+            <h2>Acciones</h2>
+            <div class="apps-sidebar__actions">
+              <a href="../index.html" class="btn-ghost apps-sidebar__button">
+                <span class="button-icon" aria-hidden="true">←</span>
+                <span>Volver al login</span>
+              </a>
+            </div>
+          </div> -->
+
+          <footer class="apps-sidebar__footer">
+            <strong>DINAFI-USC</strong>
+          </footer>
+        </div>
+      </aside>
+
+      <section class="apps-main">
+        <div class="apps-main__inner">
+          <header class="apps-main__header">
+            <div>
+              <p class="apps-main__eyebrow">Portal institucional</p>
+              <h2>Tus aplicaciones</h2>
+            </div>
+            <!-- <div class="apps-main__meta">
+              <span class="apps-main__meta-pill">Acceso remoto habilitado</span>
+            </div> -->
+            <div class="apps-sidebar__panel">
+              <!-- <h2>Acciones</h2> -->
+              <!-- <div class="apps-sidebar__actions"> -->
+              <a href="../index.html" class="btn-ghost apps-sidebar__button">
+                <span class="button-icon" aria-hidden="true">←</span>
+                <span>Volver al login</span>
+              </a>
+              <!-- </div> -->
+            </div>
+          </header>
+
+          <div class="apps-grid">
+            <button class="app-card" type="button" data-app="Word 2019">
+              <span class="app-card__icon word-theme" aria-hidden="true">W</span>
+              <span class="app-card__name">Word 2019</span>
+              <span class="app-card__publisher">Microsoft Corporation</span>
+            </button>
+
+            <button class="app-card" type="button" data-app="Excel 2019">
+              <span class="app-card__icon excel-theme" aria-hidden="true">X</span>
+              <span class="app-card__name">Excel 2019</span>
+              <span class="app-card__publisher">Microsoft Corporation</span>
+            </button>
+
+            <button class="app-card" type="button" data-app="PowerPoint 2019">
+              <span class="app-card__icon powerpoint-theme" aria-hidden="true">P</span>
+              <span class="app-card__name">PowerPoint 2019</span>
+              <span class="app-card__publisher">Microsoft Corporation</span>
+            </button>
+
+            <button class="app-card" type="button" data-app="Outlook 2019">
+              <span class="app-card__icon outlook-theme" aria-hidden="true">O</span>
+              <span class="app-card__name">Outlook 2019</span>
+              <span class="app-card__publisher">Microsoft Corporation</span>
+            </button>
+
+            <button class="app-card" type="button" data-app="Escritorio corporativo">
+              <span class="app-card__icon desktop-theme" aria-hidden="true">D</span>
+              <span class="app-card__name">Escritorio corporativo</span>
+              <span class="app-card__publisher">Full Desktop Experience</span>
+            </button>
+          </div>
+
+          <!-- <div class="apps-launch-note" id="appsLaunchNote" role="status" aria-live="polite">
+            Esta vista es demostrativa. Al elegir una aplicación se mostrará una simulación de inicio.
+          </div> -->
+        </div>
+      </section>
+
+      <div class="demo-badge" aria-label="Estado del entorno">
+        <span>Vista de demostración</span>
+      </div>
+
+    </section>
+  </main>
+</body>
+
+</html>

@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portal de aplicaciones remotas | Aplicaciones</title>
+  <meta name="description" content="Vista estática del portal de aplicaciones remotas.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="apps.css">
+  <script defer src="apps.js"></script>
+</head>
+<body class="apps-page-body">
+  <div class="bg-glow bg-glow--one"></div>
+  <div class="bg-glow bg-glow--two"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <main class="page apps-page">
+    <div class="apps-layout">
+      <section class="apps-shell" aria-label="Aplicaciones disponibles">
+        <aside class="apps-sidebar">
+          <div class="apps-sidebar__inner">
+            <div class="apps-sidebar__hero">
+              <h1>Aplicaciones remotas</h1>
+              <p>Selecciona una aplicación disponible para iniciar una sesión remota simulada.</p>
+            </div>
+
+            <footer class="apps-sidebar__footer">
+              <strong>DINAFI-USC</strong>
+            </footer>
+          </div>
+        </aside>
+
+        <section class="apps-main">
+          <div class="apps-main__inner">
+            <header class="apps-main__header">
+              <div>
+                <p class="apps-main__eyebrow">Portal institucional</p>
+                <h2>Tus aplicaciones</h2>
+              </div>
+              <div class="apps-main__meta">
+                <a href="../index.html" class="btn-ghost apps-main__logout">
+                  <span class="button-icon" aria-hidden="true">←</span>
+                  <span>Cerrar sesión</span>
+                </a>
+              </div>
+            </header>
+
+            <div class="apps-search">
+              <label class="apps-search__label" for="appSearch">Buscar aplicación</label>
+              <div class="apps-search__control">
+                <span class="apps-search__icon" aria-hidden="true">⌕</span>
+                <input id="appSearch" type="search" placeholder="Buscar por nombre o categoría" autocomplete="off">
+              </div>
+            </div>
+
+            <div class="apps-scroll" id="appsScroll">
+              <section class="app-category" data-category="Microsoft Office">
+                <div class="app-category__header">
+                  <h3>Microsoft Office</h3>
+                </div>
+                <div class="apps-grid">
+                  <button class="app-card" type="button" data-app="Word 2019" data-category="Microsoft Office">
+                    <span class="app-card__icon word-theme" aria-hidden="true">W</span>
+                    <span class="app-card__name">Word 2019</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Excel 2019" data-category="Microsoft Office">
+                    <span class="app-card__icon excel-theme" aria-hidden="true">X</span>
+                    <span class="app-card__name">Excel 2019</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="PowerPoint 2019" data-category="Microsoft Office">
+                    <span class="app-card__icon powerpoint-theme" aria-hidden="true">P</span>
+                    <span class="app-card__name">PowerPoint 2019</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Outlook 2019" data-category="Microsoft Office">
+                    <span class="app-card__icon outlook-theme" aria-hidden="true">O</span>
+                    <span class="app-card__name">Outlook 2019</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="OneNote 2019" data-category="Microsoft Office">
+                    <span class="app-card__icon onenote-theme" aria-hidden="true">N</span>
+                    <span class="app-card__name">OneNote 2019</span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="app-category" data-category="Herramientas">
+                <div class="app-category__header">
+                  <h3>Herramientas</h3>
+                </div>
+                <div class="apps-grid">
+                  <button class="app-card" type="button" data-app="Adobe Reader" data-category="Herramientas">
+                    <span class="app-card__icon reader-theme" aria-hidden="true">A</span>
+                    <span class="app-card__name">Adobe Reader</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Calculadora" data-category="Herramientas">
+                    <span class="app-card__icon calculator-theme" aria-hidden="true">C</span>
+                    <span class="app-card__name">Calculadora</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Bloc de notas" data-category="Herramientas">
+                    <span class="app-card__icon notes-theme" aria-hidden="true">B</span>
+                    <span class="app-card__name">Bloc de notas</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Paint" data-category="Herramientas">
+                    <span class="app-card__icon paint-theme" aria-hidden="true">P</span>
+                    <span class="app-card__name">Paint</span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="app-category" data-category="Navegadores">
+                <div class="app-category__header">
+                  <h3>Navegadores</h3>
+                </div>
+                <div class="apps-grid">
+                  <button class="app-card" type="button" data-app="Google Chrome" data-category="Navegadores">
+                    <span class="app-card__icon chrome-theme" aria-hidden="true">G</span>
+                    <span class="app-card__name">Google Chrome</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Microsoft Edge" data-category="Navegadores">
+                    <span class="app-card__icon edge-theme" aria-hidden="true">E</span>
+                    <span class="app-card__name">Microsoft Edge</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Mozilla Firefox" data-category="Navegadores">
+                    <span class="app-card__icon firefox-theme" aria-hidden="true">F</span>
+                    <span class="app-card__name">Mozilla Firefox</span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="app-category" data-category="Aplicaciones empresariales">
+                <div class="app-category__header">
+                  <h3>Aplicaciones empresariales</h3>
+                </div>
+                <div class="apps-grid">
+                  <button class="app-card" type="button" data-app="SAP GUI" data-category="Aplicaciones empresariales">
+                    <span class="app-card__icon sap-theme" aria-hidden="true">S</span>
+                    <span class="app-card__name">SAP GUI</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Power BI" data-category="Aplicaciones empresariales">
+                    <span class="app-card__icon powerbi-theme" aria-hidden="true">B</span>
+                    <span class="app-card__name">Power BI</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Microsoft Teams" data-category="Aplicaciones empresariales">
+                    <span class="app-card__icon teams-theme" aria-hidden="true">T</span>
+                    <span class="app-card__name">Microsoft Teams</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Sistema de gestión" data-category="Aplicaciones empresariales">
+                    <span class="app-card__icon system-theme" aria-hidden="true">S</span>
+                    <span class="app-card__name">Sistema de gestión</span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="app-category" data-category="Desarrollo">
+                <div class="app-category__header">
+                  <h3>Desarrollo</h3>
+                </div>
+                <div class="apps-grid">
+                  <button class="app-card" type="button" data-app="Visual Studio Code" data-category="Desarrollo">
+                    <span class="app-card__icon vscode-theme" aria-hidden="true">V</span>
+                    <span class="app-card__name">Visual Studio Code</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Postman" data-category="Desarrollo">
+                    <span class="app-card__icon postman-theme" aria-hidden="true">P</span>
+                    <span class="app-card__name">Postman</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Git Bash" data-category="Desarrollo">
+                    <span class="app-card__icon git-theme" aria-hidden="true">G</span>
+                    <span class="app-card__name">Git Bash</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="SSMS" data-category="Desarrollo">
+                    <span class="app-card__icon ssms-theme" aria-hidden="true">D</span>
+                    <span class="app-card__name">SSMS</span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="app-category" data-category="Escritorios remotos">
+                <div class="app-category__header">
+                  <h3>Escritorios remotos</h3>
+                </div>
+                <div class="apps-grid">
+                  <button class="app-card" type="button" data-app="Escritorio corporativo" data-category="Escritorios remotos">
+                    <span class="app-card__icon desktop-theme" aria-hidden="true">D</span>
+                    <span class="app-card__name">Escritorio corporativo</span>
+                  </button>
+
+                  <button class="app-card" type="button" data-app="Escritorio financiero" data-category="Escritorios remotos">
+                    <span class="app-card__icon finance-theme" aria-hidden="true">F</span>
+                    <span class="app-card__name">Escritorio financiero</span>
+                  </button>
+                </div>
+              </section>
+            </div>
+
+            <div class="apps-launch-note" id="appsLaunchNote" role="status" aria-live="polite">
+              Esta vista es demostrativa. Al elegir una aplicación se mostrará una simulación de inicio.
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <span class="apps-badge apps-badge--outside">Vista de demostración</span>
+    </div>
+  </main>
+</body>
+</html>
