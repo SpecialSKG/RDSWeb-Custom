@@ -1,59 +1,34 @@
-<div>
-  <h1>Escritorio Remoto</h1>
+<img src="logo_sv.svg" alt="Logo" class="logo" />
+<mat-card class="card">
+  <mat-card-header class="header">
+    <mat-card-title> Escritorio Remoto </mat-card-title>
+    <mat-card-subtitle>
+      Ingrese sus credenciales para acceder a las aplicaciones
+    </mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="form">
+      <mat-form-field>
+        <mat-label> Nombre de usuario </mat-label>
+        <input matInput formControlName="username" />
+        <mat-icon matSuffix>account_circle</mat-icon>
+        @if (loginForm.get("username")?.hasError("required")) {
+          <mat-error> El nombre de usuario es obligatorio </mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label> Contraseña </mat-label>
+        <input matInput formControlName="password" type="password" />
+        <mat-icon matSuffix>lock</mat-icon>
+        @if (loginForm.get("password")?.hasError("required")) {
+          <mat-error> La contraseña es obligatoria </mat-error>
+        } @else if (loginForm.get("password")?.hasError("minlength")) {
+          <mat-error> La contraseña debe tener al menos 8 caracteres </mat-error>
+        }
+      </mat-form-field>
 
-  @if (errorMessage()) {
-    <p>{{ errorMessage() }}</p>
-  }
-
-  <form (ngSubmit)="onSubmit()" #f="ngForm" novalidate>
-    <div>
-      <label for="username">Usuario</label>
-      <input id="username" [(ngModel)]="username" name="username" required [disabled]="loading()" />
-    </div>
-
-    <div>
-      <label for="password">Contraseña</label>
-      <input
-        id="password"
-        [type]="showPassword() ? 'text' : 'password'"
-        [(ngModel)]="password"
-        name="password"
-        required
-        [disabled]="loading()"
-      />
-      <button type="button" (click)="showPassword.set(!showPassword())">
-        {{ showPassword() ? 'Ocultar' : 'Mostrar' }}
-      </button>
-    </div>
-
-    <fieldset>
-      <legend>Tipo de sesión</legend>
-      <label>
-        <input
-          type="radio"
-          name="sessionMode"
-          [checked]="!isPublic()"
-          (change)="isPublic.set(false)"
-        />
-        Privado
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="sessionMode"
-          [checked]="isPublic()"
-          (change)="isPublic.set(true)"
-        />
-        Público
-      </label>
-    </fieldset>
-
-    <button type="submit" [disabled]="loading() || !username() || !password()">
-      @if (loading()) {
-        Cargando...
-      } @else {
-        Iniciar sesión
-      }
-    </button>
-  </form>
-</div>
+      <button matButton type="submit">Iniciar sesión</button>
+    </form>
+  </mat-card-content>
+</mat-card>
+<div></div>
