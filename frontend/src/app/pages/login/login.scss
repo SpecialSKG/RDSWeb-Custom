@@ -2,9 +2,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
 
-  background-color: var(--mat-sys-primary);
+  height: 100%;
 }
 
 .logo {
@@ -34,11 +33,26 @@
   }
 }
 
+.loading {
+  animation: spin 1s linear infinite;
+}
+
 @keyframes fadeIn {
   from {
+    transform: translateX(-20px);
     opacity: 0;
   }
   to {
+    transform: translateX(0);
     opacity: 1;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }

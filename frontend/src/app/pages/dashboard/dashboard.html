@@ -1,45 +1,58 @@
-<div>
-  <nav>
-    <span>Escritorio Remoto</span>
-    <input
-      placeholder="Buscar aplicaciones..."
-      [(ngModel)]="searchQuery"
-      (ngModelChange)="onSearch()"
-    />
-    <span>{{ user()?.displayName }}</span>
-    <button (click)="toggleTheme()">{{ isDark() ? 'Modo claro' : 'Modo oscuro' }}</button>
-    <button (click)="logout()">Cerrar sesión</button>
-  </nav>
+<mat-card class="card">
+  <mat-card-header>
+    <mat-toolbar>
+      <span>Escritorio Remoto - {{ user()?.displayName || "Usuario" }}</span>
+      <span class="spacer"></span>
 
-  <main>
-    @if (loading()) {
-      <p>Cargando aplicaciones...</p>
-    } @else if (error()) {
-      <div>
-        <h3>Error al cargar las aplicaciones</h3>
-        <p>{{ error() }}</p>
-        <button (click)="loadApps()">Reintentar</button>
-      </div>
-    } @else {
-      @for (group of filteredGroups; track group.name) {
-        <section>
-          <h2>{{ group.name }} ({{ group.apps.length }})</h2>
-          <ul>
-            @for (app of group.apps; track app.alias) {
-              <li (click)="launch(app.alias)" (keydown.enter)="launch(app.alias)">
-                <strong>{{ app.name }}</strong> —
-                <small>{{ app.remoteServer }}</small>
-              </li>
-            }
-          </ul>
-        </section>
-      } @empty {
+      <button matIconButton (click)="toggleTheme()">
+        <mat-icon>{{ isDark() ? "dark_mode" : "light_mode" }}</mat-icon>
+      </button>
+      <button matIconButton (click)="logout()">
+        <mat-icon>logout</mat-icon>
+      </button>
+    </mat-toolbar>
+  </mat-card-header>
+  <mat-card-content>
+    <div class="centered">
+      <mat-form-field appearance="outline">
+        <mat-label>Buscar aplicaciones</mat-label>
+        <input matInput [(ngModel)]="searchQuery" />
         @if (searchQuery()) {
-          <p>No se encontraron aplicaciones para "{{ searchQuery() }}"</p>
-        } @else {
-          <p>No tienes RemoteApps asignadas en este momento.</p>
+          <button matIconButton matSuffix (click)="searchQuery.set('')">
+            <mat-icon>close</mat-icon>
+          </button>
         }
+      </mat-form-field>
+    </div>
+    <main>
+      @defer (when !isLoading()) {
+        <mat-nav-list>
+          <mat-divider></mat-divider>
+          @for (group of filteredGroups(); track group.name) {
+            <div mat-subheader>{{ group.name }} ({{ group.apps.length }})</div>
+            @for (app of group.apps; track app.alias) {
+              <a mat-list-item (click)="launch(app.alias)" (keydown.enter)="launch(app.alias)">
+                <mat-icon matListItemIcon>description</mat-icon>
+                <div matListItemTitle>{{ app.name }} - {{ app.remoteServer }}</div>
+              </a>
+            }
+            <mat-divider></mat-divider>
+          } @empty {
+            <div class="centered">
+              @if (isLoading()) {
+                <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+              }
+              <button matButton (click)="loadApps()" (keydown.enter)="loadApps()">
+                No se encontraron aplicaciones. Haga clic para recargar.
+              </button>
+            </div>
+          }
+        </mat-nav-list>
+      } @placeholder {
+        <div class="centered">
+          <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+        </div>
       }
-    }
-  </main>
-</div>
+    </main>
+  </mat-card-content>
+</mat-card>

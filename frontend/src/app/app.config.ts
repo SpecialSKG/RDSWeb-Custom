@@ -6,7 +6,6 @@ import { credentialsInterceptor } from "./core/interceptors/credentials.intercep
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from "@angular/material/form-field";
 import { MAT_INPUT_CONFIG } from "@angular/material/input";
 import { MAT_BUTTON_CONFIG } from "@angular/material/button";
-import { MAT_CARD_CONFIG } from "@angular/material/card";
 
 export const appConfig: ApplicationConfig = {
   providers: [

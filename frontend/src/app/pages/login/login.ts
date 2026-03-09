@@ -33,22 +33,27 @@ export class LoginComponent {
   private readonly fb = inject(NonNullableFormBuilder);
 
   loginForm = this.fb.group({
-    username: ["", [Validators.required]],
-    password: ["", [Validators.required, Validators.minLength(8)]],
+    username: ["Administrador", [Validators.required]],
+    password: ["Admin1234!", [Validators.required, Validators.minLength(8)]],
   });
 
-  showPassword = signal(false);
+  hidePassword = signal(true);
+
   loading = signal(false);
 
   onSubmit() {
-    if (!this.loginForm.valid) return;
-    this.loading.set(true);
+    if (this.loginForm.invalid) {
+      this.loginForm.markAllAsTouched();
+      return;
+    }
 
+    this.loading.set(true);
     this.authService.login(this.loginForm.value).subscribe({
       next: () => {
         this.router.navigate(["dashboard"]);
       },
       error: (err) => {
+        this.loginForm.markAllAsTouched();
         this.loading.set(false);
       },
     });
