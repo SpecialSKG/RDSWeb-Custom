@@ -87,6 +87,7 @@ function isResourceAllowedForUser(resourceGroups, userPermissionSet) {
 
 // ── Aplicaciones simuladas ─────────────────────────────────────────────────
 const SIMULATED_APPS = [
+  // ── Microsoft Office ─────────────────────────────────────────
   {
     alias: "MSWORD",
     name: "Microsoft Word 2019",
@@ -94,6 +95,7 @@ const SIMULATED_APPS = [
     iconIndex: 0,
     remoteServer: config.rdcb.server,
     folderName: "Microsoft Office",
+    collectionName: "Office Apps",
   },
   {
     alias: "MSEXCEL",
@@ -102,6 +104,7 @@ const SIMULATED_APPS = [
     iconIndex: 0,
     remoteServer: config.rdcb.server,
     folderName: "Microsoft Office",
+    collectionName: "Office Apps",
   },
   {
     alias: "MSPOWERPOINT",
@@ -110,7 +113,27 @@ const SIMULATED_APPS = [
     iconIndex: 0,
     remoteServer: config.rdcb.server,
     folderName: "Microsoft Office",
+    collectionName: "Office Apps",
   },
+  {
+    alias: "MSOUTLOOK",
+    name: "Microsoft Outlook 2019",
+    rdpPath: "||MSOUTLOOK",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Microsoft Office",
+    collectionName: "Office Apps",
+  },
+  {
+    alias: "MSONENOTE",
+    name: "Microsoft OneNote 2019",
+    rdpPath: "||MSONENOTE",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Microsoft Office",
+    collectionName: "Office Apps",
+  },
+  // ── Herramientas ─────────────────────────────────────────────
   {
     alias: "NOTEPADPP",
     name: "Notepad++",
@@ -118,7 +141,38 @@ const SIMULATED_APPS = [
     iconIndex: 0,
     remoteServer: config.rdcb.server,
     folderName: "Herramientas",
+    collectionName: "Utilidades",
   },
+  {
+    alias: "PUTTY",
+    name: "PuTTY SSH Client",
+    rdpPath: "||PUTTY",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Herramientas",
+    collectionName: "Utilidades",
+    allowedGroups: ["Desarrollo", "Domain Admins"],
+  },
+  {
+    alias: "WINSCP",
+    name: "WinSCP",
+    rdpPath: "||WINSCP",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Herramientas",
+    collectionName: "Utilidades",
+    allowedGroups: ["Desarrollo", "Domain Admins"],
+  },
+  {
+    alias: "CALC",
+    name: "Calculadora",
+    rdpPath: "||CALC",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Herramientas",
+    collectionName: "Utilidades",
+  },
+  // ── Navegadores ──────────────────────────────────────────────
   {
     alias: "CHROME",
     name: "Google Chrome",
@@ -126,7 +180,27 @@ const SIMULATED_APPS = [
     iconIndex: 0,
     remoteServer: config.rdcb.server,
     folderName: "Navegadores",
+    collectionName: "Web Browsers",
   },
+  {
+    alias: "FIREFOX",
+    name: "Mozilla Firefox",
+    rdpPath: "||FIREFOX",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Navegadores",
+    collectionName: "Web Browsers",
+  },
+  {
+    alias: "MSEDGE",
+    name: "Microsoft Edge",
+    rdpPath: "||MSEDGE",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Navegadores",
+    collectionName: "Web Browsers",
+  },
+  // ── Aplicaciones Empresariales ───────────────────────────────
   {
     alias: "ERP",
     name: "Sistema ERP",
@@ -134,6 +208,59 @@ const SIMULATED_APPS = [
     iconIndex: 0,
     remoteServer: config.rdcb.server,
     folderName: "Aplicaciones Empresariales",
+    collectionName: "Business Apps",
+    allowedGroups: ["Contabilidad", "Domain Admins"],
+  },
+  {
+    alias: "CRM",
+    name: "CRM Ventas",
+    rdpPath: "||CRM",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Aplicaciones Empresariales",
+    collectionName: "Business Apps",
+    allowedGroups: ["Contabilidad", "Domain Admins"],
+  },
+  {
+    alias: "NOMINAS",
+    name: "Sistema de Nóminas",
+    rdpPath: "||NOMINAS",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Aplicaciones Empresariales",
+    collectionName: "Business Apps",
+    allowedGroups: ["RRHH", "Domain Admins"],
+  },
+  {
+    alias: "CONTPAQ",
+    name: "CONTPAQi Contabilidad",
+    rdpPath: "||CONTPAQ",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Aplicaciones Empresariales",
+    collectionName: "Business Apps",
+    allowedGroups: ["Contabilidad", "Domain Admins"],
+  },
+  // ── Desarrollo ───────────────────────────────────────────────
+  {
+    alias: "VSCODE",
+    name: "Visual Studio Code",
+    rdpPath: "||VSCODE",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Desarrollo",
+    collectionName: "Dev Tools",
+    allowedGroups: ["Desarrollo", "Domain Admins"],
+  },
+  {
+    alias: "SSMS",
+    name: "SQL Server Management Studio",
+    rdpPath: "||SSMS",
+    iconIndex: 0,
+    remoteServer: config.rdcb.server,
+    folderName: "Desarrollo",
+    collectionName: "Dev Tools",
+    allowedGroups: ["Desarrollo", "Domain Admins"],
   },
 ];
 
@@ -144,6 +271,14 @@ const SIMULATED_DESKTOPS = [
     rdpPath: null,
     remoteServer: config.rdcb.server,
     folderName: "Escritorios",
+  },
+  {
+    alias: "DESKTOP_DEV",
+    name: "Escritorio Desarrollo",
+    rdpPath: null,
+    remoteServer: config.rdcb.server,
+    folderName: "Escritorios",
+    allowedGroups: ["Desarrollo", "Domain Admins"],
   },
 ];
 

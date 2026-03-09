@@ -1,24 +1,18 @@
 import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
     selector: 'app-login',
     standalone: true,
-    imports: [CommonModule, FormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
+    imports: [FormsModule],
     templateUrl: './login.html',
     styleUrl: './login.css',
 })
 export class LoginComponent {
-    username = 'usr_finanzas1';
-    password = 'P@$$w0rd.2025.';
+    username = 'administrador';
+    password = 'Admin1234!';
     showPassword = false;
     isPublic = false;
     loading = false;

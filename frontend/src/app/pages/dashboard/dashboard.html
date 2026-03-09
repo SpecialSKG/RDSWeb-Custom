@@ -1,90 +1,41 @@
-<div class="dashboard-layout">
-    <!-- Navbar -->
-    <nav class="navbar">
-        <div class="navbar-brand">
-            <div class="brand-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <rect x="2" y="3" width="20" height="14" rx="2" stroke="var(--accent)" stroke-width="2" />
-                    <path d="M8 21h8M12 17v4" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" />
-                </svg>
-            </div>
-            <span class="brand-name">Escritorio Remoto</span>
-        </div>
-
-        <div class="navbar-search">
-            <mat-form-field appearance="fill" class="search-field">
-                <mat-icon matPrefix>search</mat-icon>
-                <input matInput placeholder="Buscar aplicaciones..." [(ngModel)]="searchQuery"
-                    (ngModelChange)="onSearch()" />
-            </mat-form-field>
-        </div>
-
-        <div class="navbar-actions">
-            <!-- Toggle Tema -->
-            <button mat-icon-button (click)="toggleTheme()" class="theme-btn"
-                [title]="isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'">
-                <mat-icon>{{ isDark ? 'light_mode' : 'dark_mode' }}</mat-icon>
-            </button>
-            <span class="user-name">{{ user()?.displayName }}</span>
-            <div class="avatar" [title]="user()?.displayName || ''">{{ user()?.initials }}</div>
-            <button mat-icon-button (click)="logout()" title="Cerrar sesión" class="logout-btn">
-                <mat-icon>logout</mat-icon>
-            </button>
-        </div>
+<div>
+    <nav>
+        <span>Escritorio Remoto</span>
+        <input placeholder="Buscar aplicaciones..." [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" />
+        <span>{{ user()?.displayName }}</span>
+        <button (click)="toggleTheme()">{{ isDark ? 'Modo claro' : 'Modo oscuro' }}</button>
+        <button (click)="logout()">Cerrar sesión</button>
     </nav>
 
-    <!-- Contenido principal -->
-    <main class="main-content">
-        <!-- Loading -->
-        <div class="loading-state" *ngIf="loading">
-            <mat-spinner diameter="48"></mat-spinner>
+    <main>
+        @if (loading) {
             <p>Cargando aplicaciones...</p>
-        </div>
-
-        <!-- Error -->
-        <div class="error-state fade-in-up" *ngIf="!loading && error">
-            <span class="material-icons error-icon-mat">warning_amber</span>
-            <h3>Error al cargar las aplicaciones</h3>
-            <p>{{ error }}</p>
-            <button mat-flat-button (click)="loadApps()">Reintentar</button>
-        </div>
-
-        <!-- Apps cargadas -->
-        <div *ngIf="!loading && !error">
-            <div *ngFor="let group of filteredGroups; let i = index" class="app-group fade-in-up"
-                [style.animation-delay]="i * 80 + 'ms'">
-                <div class="group-header">
-                    <span class="group-tag"></span>
-                    <h2 class="group-title">{{ group.name }}</h2>
-                    <span class="group-count">{{ group.apps.length }}</span>
-                </div>
-
-                <div class="apps-grid">
-                    <div class="app-card" *ngFor="let app of group.apps" (click)="launch(app.alias)"
-                        [title]="'Abrir ' + app.name">
-                        <div class="app-card-icon" [class]="'app-icon-bg icon-' + getIconColor(app.alias)">
-                            <span class="material-icons app-icon">{{ getIconForApp(app.alias, app.name) }}</span>
-                        </div>
-                        <div class="app-card-info">
-                            <p class="app-name">{{ app.name }}</p>
-                            <p class="app-server">{{ app.remoteServer }}</p>
-                        </div>
-                        <span class="material-icons app-launch-icon">open_in_new</span>
-                    </div>
-                </div>
+        } @else if (error) {
+            <div>
+                <h3>Error al cargar las aplicaciones</h3>
+                <p>{{ error }}</p>
+                <button (click)="loadApps()">Reintentar</button>
             </div>
-
-            <!-- Sin resultados -->
-            <div class="empty-state" *ngIf="filteredGroups.length === 0 && searchQuery">
-                <span class="material-icons" style="font-size:3rem; color: var(--text-muted)">search_off</span>
-                <h3>Sin resultados</h3>
-                <p>No se encontraron aplicaciones para "{{ searchQuery }}"</p>
-            </div>
-            <div class="empty-state" *ngIf="filteredGroups.length === 0 && !searchQuery">
-                <span class="material-icons" style="font-size:3rem; color: var(--text-muted)">inbox</span>
-                <h3>Sin aplicaciones disponibles</h3>
-                <p>No tienes RemoteApps asignadas en este momento.</p>
-            </div>
-        </div>
+        } @else {
+            @for (group of filteredGroups; track group.name) {
+                <section>
+                    <h2>{{ group.name }} ({{ group.apps.length }})</h2>
+                    <ul>
+                        @for (app of group.apps; track app.alias) {
+                            <li (click)="launch(app.alias)">
+                                <strong>{{ app.name }}</strong> —
+                                <small>{{ app.remoteServer }}</small>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            } @empty {
+                @if (searchQuery) {
+                    <p>No se encontraron aplicaciones para "{{ searchQuery }}"</p>
+                } @else {
+                    <p>No tienes RemoteApps asignadas en este momento.</p>
+                }
+            }
+        }
     </main>
 </div>
