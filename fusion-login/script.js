@@ -5,7 +5,7 @@ window.addEventListener("load", function () {
     if (preloader) {
       preloader.classList.add("hidden");
     }
-  }, 500);
+  }, 700);
 });
 
 const togglePasswordBtn = document.getElementById("togglePassword");
