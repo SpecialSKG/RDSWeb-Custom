@@ -73,7 +73,7 @@
                     <button class="app-card" type="button" (click)="launch(app)">
                       @if (getIconUrl(app)) {
                         <span class="app-card__img">
-                          <img [src]="getIconUrl(app)" [alt]="app.name + ' icon'" />
+                          <img [src]="getIconUrl(app)" [alt]="app.name + ' icon'" (error)="onIconError(app)" />
                         </span>
                       } @else {
                         <span class="app-card__icon" [style.background]="getIconColor(app.name)">

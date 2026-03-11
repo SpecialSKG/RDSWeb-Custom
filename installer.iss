@@ -58,16 +58,15 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 PrivilegesRequired=admin
 WizardStyle=modern
+SetupIconFile={app}\assets\installer\app-icon.ico
+WizardImageFile={app}\assets\installer\wizard-banner.png
+WizardSmallImageFile={app}\assets\installer\wizard-logo.png
+UninstallDisplayIcon={app}\assets\installer\app-icon.ico
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
 CloseApplications=no
 UninstallDisplayName={#MyAppName}
-#if BackendType == "python"
-UninstallDisplayIcon={app}\backend\main.exe
-#else
-UninstallDisplayIcon={app}\backend\node.exe
-#endif
 ; Mínimo Windows Server 2016 / Windows 10
 MinVersion=10.0
 

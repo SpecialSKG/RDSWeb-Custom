@@ -47,6 +47,7 @@ export class FusionAppsComponent implements OnInit {
   allGroups = signal<AppGroup[]>([]);
   isLoading = signal(false);
   launchNote = signal('');
+  brokenIcons = signal(new Set<string>());
 
   filteredGroups = computed(() => {
     const q = this.searchQuery().toLowerCase().trim();
@@ -112,9 +113,13 @@ export class FusionAppsComponent implements OnInit {
   }
 
   getIconUrl(app: RemoteApp): string | null {
-    if (app.alias) {
+    if (app.alias && !this.brokenIcons().has(app.alias)) {
       return app.alias + '.png';
     }
     return null;
+  }
+
+  onIconError(app: RemoteApp): void {
+    this.brokenIcons.update((set) => new Set(set).add(app.alias));
   }
 }

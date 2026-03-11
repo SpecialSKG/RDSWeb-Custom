@@ -89,7 +89,7 @@ function isResourceAllowedForUser(resourceGroups, userPermissionSet) {
 const SIMULATED_APPS = [
   // ── Microsoft Office ─────────────────────────────────────────
   {
-    alias: "MSWORD",
+    alias: "WINWORD",
     name: "Microsoft Word 2019",
     rdpPath: "||MSWORD",
     iconIndex: 0,
