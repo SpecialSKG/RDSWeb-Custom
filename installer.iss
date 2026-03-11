@@ -81,13 +81,29 @@ spanish.CredDescription=El servicio backend se ejecutará bajo la cuenta de domi
 spanish.CredAccount=Cuenta de servicio:
 spanish.CredPassword=Contraseña:
 spanish.CredEmpty=Debe ingresar la contraseña de la cuenta de servicio.
+spanish.CredValidating=Validando credenciales contra Active Directory...
+spanish.CredInvalid=La contraseña ingresada no es válida para la cuenta de servicio.%n%nPor favor, verifique e intente de nuevo.
+spanish.CredDomainWarn=No se pudo validar la contraseña contra el dominio.%nLa instalación continuará, pero si la contraseña es incorrecta el servicio no podrá iniciar.
 spanish.StatusStopService=Deteniendo servicio anterior...
 spanish.StatusPrereqs=Instalando prerrequisitos de IIS...
 spanish.StatusService=Configurando servicio backend...
 spanish.ErrPrereqs=Ocurrieron errores al instalar los prerrequisitos de IIS.%n%nRevise el log en:%n%1\install-prereqs.log
 spanish.ErrService=Ocurrieron errores al configurar el servicio backend.%n%nRevise el log en:%n%1\install-service.log
 spanish.DoneTitle=Recordatorios Post-Instalación
-spanish.DoneReminder=La instalación ha finalizado correctamente.%n%nRecuerde:%n%n1. Verifique que el sitio IIS apunte a la carpeta del frontend.%n2. Revise el archivo .env en la carpeta backend si es la primera instalación.%n3. El Proxy Inverso de IIS fue habilitado automáticamente.
+spanish.DoneReminder=La instalación ha finalizado correctamente.%n%nRecuerde:%n%n1. Verifique que el sitio IIS apunte a la carpeta del frontend.%n2. El archivo .env fue generado con los valores del asistente.%n3. El Proxy Inverso de IIS fue habilitado automáticamente.
+spanish.ADTitle=Configuración de Active Directory
+spanish.ADDescription=Configure la conexión LDAP al controlador de dominio y la cuenta de servicio que el backend usará para consultar el directorio.
+spanish.ADLdapUrl=URL LDAP del Domain Controller:
+spanish.ADBaseDN=Base DN del dominio:
+spanish.ADDomain=Dominio NetBIOS:
+spanish.ADServiceUser=Cuenta de servicio AD (formato UPN):
+spanish.ADServicePass=Contraseña de la cuenta de servicio AD:
+spanish.ADFieldsRequired=Todos los campos de Active Directory son obligatorios.
+spanish.SrvTitle=Servidores y Servicios
+spanish.SrvDescription=Configure las direcciones de los servidores que utiliza el portal.
+spanish.SrvRDCB=Servidor RD Connection Broker:
+spanish.SrvMyrtille=URL de Myrtille (RDP en navegador):
+spanish.SrvFieldsRequired=Debe completar todos los campos de servidores.
 ; --- English ---
 english.ComponentPrereqs=IIS Prerequisites (URL Rewrite 2.1 & ARR 3.0)
 english.ComponentBackend=Node.js Backend (API + Windows Service)
@@ -97,13 +113,29 @@ english.CredDescription=The backend service will run under the domain account sh
 english.CredAccount=Service account:
 english.CredPassword=Password:
 english.CredEmpty=You must enter the service account password.
+english.CredValidating=Validating credentials against Active Directory...
+english.CredInvalid=The password entered is not valid for the service account.%n%nPlease verify and try again.
+english.CredDomainWarn=Could not validate the password against the domain.%nInstallation will continue, but the service may fail to start if the password is incorrect.
 english.StatusStopService=Stopping previous service...
 english.StatusPrereqs=Installing IIS prerequisites...
 english.StatusService=Configuring backend service...
 english.ErrPrereqs=Errors occurred while installing IIS prerequisites.%n%nCheck the log at:%n%1\install-prereqs.log
 english.ErrService=Errors occurred while configuring the backend service.%n%nCheck the log at:%n%1\install-service.log
 english.DoneTitle=Post-Installation Reminders
-english.DoneReminder=Installation completed successfully.%n%nRemember:%n%n1. Verify that the IIS site points to the frontend folder.%n2. Review the .env file in the backend folder if this is the first installation.%n3. The IIS Reverse Proxy was enabled automatically.
+english.DoneReminder=Installation completed successfully.%n%nRemember:%n%n1. Verify that the IIS site points to the frontend folder.%n2. The .env file was generated with the values entered in the wizard.%n3. The IIS Reverse Proxy was enabled automatically.
+english.ADTitle=Active Directory Configuration
+english.ADDescription=Configure the LDAP connection to the domain controller and the service account the backend will use to query the directory.
+english.ADLdapUrl=Domain Controller LDAP URL:
+english.ADBaseDN=Domain Base DN:
+english.ADDomain=NetBIOS Domain:
+english.ADServiceUser=AD service account (UPN format):
+english.ADServicePass=AD service account password:
+english.ADFieldsRequired=All Active Directory fields are required.
+english.SrvTitle=Servers and Services
+english.SrvDescription=Configure the server addresses used by the portal.
+english.SrvRDCB=RD Connection Broker server:
+english.SrvMyrtille=Myrtille URL (browser-based RDP):
+english.SrvFieldsRequired=All server fields are required.
 
 ; =====================================================================
 ; TIPOS Y COMPONENTES
@@ -133,10 +165,7 @@ Source: "{#SrcBackend}\nssm.exe"; DestDir: "{app}\backend"; \
 Source: "{#SrcBackend}\node.exe"; DestDir: "{app}\backend"; \
   Components: backend; Flags: ignoreversion
 
-; .env: solo copiar en primera instalación (preserva config en upgrades)
-Source: "{#SrcBackend}\.env"; DestDir: "{app}\backend"; \
-  Components: backend; \
-  Flags: onlyifdoesntexist uninsneveruninstall skipifsourcedoesntexist
+; .env se genera desde el asistente (ver WriteEnvFile en [Code])
 
 ; --- Frontend (archivos estáticos compilados de Angular) ---
 Source: "{#SrcFrontend}\*"; DestDir: "{app}\frontend"; \
@@ -182,59 +211,394 @@ Type: filesandordirs; Name: "{app}\scripts"
 [Code]
 var
   CredPage: TInputQueryWizardPage;
+  ADPage: TInputQueryWizardPage;
+  ServersPage: TInputQueryWizardPage;
+  EnvLoaded: Boolean;
 
-(* ----------------------------------------------------------------- *)
-(* Página personalizada: Credenciales del servicio                    *)
-(* ----------------------------------------------------------------- *)
+(* ================================================================= *)
+(* UTILIDADES                                                         *)
+(* ================================================================= *)
+
+{ Leer KEY=VALUE de un contenido .env cargado en memoria }
+function GetEnvFileValue(const EnvContent: AnsiString; const Key: String): String;
+var
+  SearchStr: AnsiString;
+  Content: AnsiString;
+  P, E: Integer;
+begin
+  Result := '';
+  Content := #10 + EnvContent;
+  SearchStr := #10 + Key + '=';
+  P := Pos(SearchStr, Content);
+  if P > 0 then
+  begin
+    P := P + Length(SearchStr);
+    E := P;
+    while (E <= Length(Content)) and (Content[E] <> #13) and (Content[E] <> #10) do
+      Inc(E);
+    Result := Copy(Content, P, E - P);
+  end;
+end;
+
+{ Generar cadena hexadecimal aleatoria (para JWT_SECRET) }
+function GenerateRandomHex(Len: Integer): String;
+var
+  I: Integer;
+begin
+  Result := '';
+  for I := 1 to Len do
+    Result := Result + Copy('0123456789abcdef', Random(16) + 1, 1);
+end;
+
+{ Auto-detectar Base DN desde USERDNSDOMAIN (LAB-MH.LOCAL -> DC=LAB-MH,DC=LOCAL) }
+function AutoDetectBaseDN: String;
+var
+  DNS, Part: String;
+  P: Integer;
+begin
+  Result := '';
+  DNS := Uppercase(GetEnv('USERDNSDOMAIN'));
+  if DNS = '' then Exit;
+  while DNS <> '' do
+  begin
+    P := Pos('.', DNS);
+    if P > 0 then
+    begin
+      Part := Copy(DNS, 1, P - 1);
+      DNS := Copy(DNS, P + 1, Length(DNS));
+    end
+    else begin
+      Part := DNS;
+      DNS := '';
+    end;
+    if Result <> '' then Result := Result + ',';
+    Result := Result + 'DC=' + Part;
+  end;
+end;
+
+{ Auto-detectar URL LDAP desde LOGONSERVER + USERDNSDOMAIN }
+function AutoDetectLdapUrl: String;
+var
+  Srv, Dom: String;
+begin
+  Srv := GetEnv('LOGONSERVER');
+  Dom := GetEnv('USERDNSDOMAIN');
+  while (Length(Srv) > 0) and (Srv[1] = '\') do
+    Srv := Copy(Srv, 2, Length(Srv));
+  if (Srv <> '') and (Dom <> '') then
+    Result := 'ldap://' + Srv + '.' + Dom
+  else if Srv <> '' then
+    Result := 'ldap://' + Srv
+  else
+    Result := 'ldap://';
+end;
+
+{ Cargar valores de un .env existente en las paginas del wizard (upgrade) }
+procedure LoadExistingEnvValues;
+var
+  EnvPath, Val: String;
+  Content: AnsiString;
+begin
+  EnvPath := ExpandConstant('{app}\backend\.env');
+  if not FileExists(EnvPath) then Exit;
+  if not LoadStringFromFile(EnvPath, Content) then Exit;
+
+  Val := GetEnvFileValue(Content, 'LDAP_URL');
+  if Val <> '' then ADPage.Values[0] := Val;
+  Val := GetEnvFileValue(Content, 'LDAP_BASE_DN');
+  if Val <> '' then ADPage.Values[1] := Val;
+  Val := GetEnvFileValue(Content, 'AD_DOMAIN');
+  if Val <> '' then ADPage.Values[2] := Val;
+  Val := GetEnvFileValue(Content, 'AD_SERVICE_USER');
+  if Val <> '' then ADPage.Values[3] := Val;
+  Val := GetEnvFileValue(Content, 'AD_SERVICE_PASS');
+  if Val <> '' then ADPage.Values[4] := Val;
+  Val := GetEnvFileValue(Content, 'RDCB_SERVER');
+  if Val <> '' then ServersPage.Values[0] := Val;
+  Val := GetEnvFileValue(Content, 'MYRTILLE_URL');
+  if Val <> '' then ServersPage.Values[1] := Val;
+end;
+
+(* ================================================================= *)
+(* PAGINAS DEL WIZARD                                                 *)
+(* ================================================================= *)
 procedure InitializeWizard;
 var
   AccountStr: String;
 begin
   AccountStr := GetEnv('USERDOMAIN') + '\' + GetEnv('USERNAME');
 
+  { -- Pagina 1: Credenciales del servicio Windows (NSSM) -- }
   CredPage := CreateInputQueryPage(
     wpSelectComponents,
     ExpandConstant('{cm:CredTitle}'),
     ExpandConstant('{cm:CredDescription}'),
     ExpandConstant('{cm:CredAccount}') + ' ' + AccountStr
   );
-  CredPage.Add(ExpandConstant('{cm:CredPassword}'), True); { True = campo password }
+  CredPage.Add(ExpandConstant('{cm:CredPassword}'), True);
+
+  { -- Pagina 2: Active Directory / LDAP -- }
+  ADPage := CreateInputQueryPage(
+    CredPage.ID,
+    ExpandConstant('{cm:ADTitle}'),
+    ExpandConstant('{cm:ADDescription}'),
+    ''
+  );
+  ADPage.Add(ExpandConstant('{cm:ADLdapUrl}'), False);
+  ADPage.Add(ExpandConstant('{cm:ADBaseDN}'), False);
+  ADPage.Add(ExpandConstant('{cm:ADDomain}'), False);
+  ADPage.Add(ExpandConstant('{cm:ADServiceUser}'), False);
+  ADPage.Add(ExpandConstant('{cm:ADServicePass}'), True);
+
+  { Valores auto-detectados desde el entorno }
+  ADPage.Values[0] := AutoDetectLdapUrl;
+  ADPage.Values[1] := AutoDetectBaseDN;
+  ADPage.Values[2] := GetEnv('USERDOMAIN');
+
+  { -- Pagina 3: Servidores y servicios -- }
+  ServersPage := CreateInputQueryPage(
+    ADPage.ID,
+    ExpandConstant('{cm:SrvTitle}'),
+    ExpandConstant('{cm:SrvDescription}'),
+    ''
+  );
+  ServersPage.Add(ExpandConstant('{cm:SrvRDCB}'), False);
+  ServersPage.Add(ExpandConstant('{cm:SrvMyrtille}'), False);
+
+  ServersPage.Values[1] := 'https://localhost/Myrtille';
+
+  EnvLoaded := False;
 end;
 
-(* Ocultar página de credenciales si no se instala el backend *)
+(* Cargar .env existente al llegar a CredPage, cuando {app} ya esta disponible *)
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if (CurPageID = CredPage.ID) and (not EnvLoaded) then
+  begin
+    LoadExistingEnvValues;
+    EnvLoaded := True;
+  end;
+end;
+
+(* Ocultar paginas de configuracion si no se instala el backend *)
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  if PageID = CredPage.ID then
+  if (PageID = CredPage.ID) or (PageID = ADPage.ID) or (PageID = ServersPage.ID) then
     Result := not WizardIsComponentSelected('backend');
 end;
 
-(* Validar que se ingresó una contraseña *)
+(* ================================================================= *)
+(* VALIDACION DE CREDENCIALES AD (timeout 15 s)                       *)
+(* ================================================================= *)
+function ValidateCredentials: Integer;
+var
+  RC: Integer;
+  PwdFile, ResultFile, ScriptFile, ScriptContent: String;
+  ResText: AnsiString;
+begin
+  Result := 2;
+  PwdFile    := ExpandConstant('{tmp}\svcpwd_validate.dat');
+  ResultFile := ExpandConstant('{tmp}\svcpwd_result.dat');
+  ScriptFile := ExpandConstant('{tmp}\validate-creds.ps1');
+
+  SaveStringToFile(PwdFile, CredPage.Values[0], False);
+
+  ScriptContent :=
+    '$res = 2' + #13#10 +
+    'try {' + #13#10 +
+    '  $pw = (Get-Content ''' + PwdFile + ''' -Raw).Trim()' + #13#10 +
+    '  Remove-Item ''' + PwdFile + ''' -Force -EA SilentlyContinue' + #13#10 +
+    '  $d = $env:USERDNSDOMAIN' + #13#10 +
+    '  if (-not $d) { $res = 2 }' + #13#10 +
+    '  else {' + #13#10 +
+    '    $rs = [runspacefactory]::CreateRunspace(); $rs.Open()' + #13#10 +
+    '    $ps = [powershell]::Create(); $ps.Runspace = $rs' + #13#10 +
+    '    [void]$ps.AddScript({' + #13#10 +
+    '      param($domain,$user,$pass)' + #13#10 +
+    '      Add-Type -AssemblyName System.DirectoryServices.AccountManagement' + #13#10 +
+    '      $c = [System.DirectoryServices.AccountManagement.PrincipalContext]::new(' + #13#10 +
+    '        [System.DirectoryServices.AccountManagement.ContextType]::Domain,$domain)' + #13#10 +
+    '      $c.ValidateCredentials($user,$pass)' + #13#10 +
+    '    }).AddArgument($d).AddArgument($env:USERNAME).AddArgument($pw)' + #13#10 +
+    '    $h = $ps.BeginInvoke()' + #13#10 +
+    '    if ($h.AsyncWaitHandle.WaitOne(15000)) {' + #13#10 +
+    '      $r = $ps.EndInvoke($h)' + #13#10 +
+    '      if ($r -and $r[0] -eq $true) { $res = 0 } else { $res = 1 }' + #13#10 +
+    '    }' + #13#10 +
+    '    try { $ps.Stop() } catch {}' + #13#10 +
+    '    $ps.Dispose(); $rs.Dispose()' + #13#10 +
+    '  }' + #13#10 +
+    '} catch { $res = 2 }' + #13#10 +
+    'Remove-Item ''' + PwdFile + ''' -Force -EA SilentlyContinue' + #13#10 +
+    '[IO.File]::WriteAllText(''' + ResultFile + ''', $res.ToString())';
+
+  SaveStringToFile(ScriptFile, ScriptContent, False);
+
+  Exec('cmd.exe',
+    '/C start /WAIT /B powershell.exe -ExecutionPolicy Bypass -NoProfile -File "' + ScriptFile + '"',
+    '', SW_HIDE, ewWaitUntilTerminated, RC);
+
+  if FileExists(ResultFile) then
+  begin
+    if LoadStringFromFile(ResultFile, ResText) then
+    begin
+      ResText := Trim(ResText);
+      if ResText = '0' then Result := 0
+      else if ResText = '1' then Result := 1
+      else Result := 2;
+    end;
+  end;
+
+  DeleteFile(PwdFile);
+  DeleteFile(ResultFile);
+  DeleteFile(ScriptFile);
+end;
+
+(* ================================================================= *)
+(* VALIDACION DE PAGINAS                                              *)
+(* ================================================================= *)
 function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  ValidationResult, I: Integer;
+  AllFilled: Boolean;
 begin
   Result := True;
+
+  { -- Credenciales del servicio Windows -- }
   if CurPageID = CredPage.ID then
   begin
     if Trim(CredPage.Values[0]) = '' then
     begin
       MsgBox(ExpandConstant('{cm:CredEmpty}'), mbError, MB_OK);
       Result := False;
+      Exit;
+    end;
+
+    WizardForm.NextButton.Enabled := False;
+    WizardForm.BackButton.Enabled := False;
+    WizardForm.CancelButton.Enabled := False;
+    try
+      ValidationResult := ValidateCredentials;
+    finally
+      WizardForm.NextButton.Enabled := True;
+      WizardForm.BackButton.Enabled := True;
+      WizardForm.CancelButton.Enabled := True;
+    end;
+
+    if ValidationResult = 1 then
+    begin
+      MsgBox(ExpandConstant('{cm:CredInvalid}'), mbError, MB_OK);
+      Result := False;
+    end
+    else if ValidationResult = 2 then
+      MsgBox(ExpandConstant('{cm:CredDomainWarn}'), mbInformation, MB_OK);
+  end;
+
+  { -- Active Directory -- }
+  if CurPageID = ADPage.ID then
+  begin
+    AllFilled := True;
+    for I := 0 to 4 do
+    begin
+      if Trim(ADPage.Values[I]) = '' then
+      begin
+        AllFilled := False;
+        Break;
+      end;
+    end;
+    if not AllFilled then
+    begin
+      MsgBox(ExpandConstant('{cm:ADFieldsRequired}'), mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+
+  { -- Servidores -- }
+  if CurPageID = ServersPage.ID then
+  begin
+    AllFilled := True;
+    for I := 0 to 1 do
+    begin
+      if Trim(ServersPage.Values[I]) = '' then
+      begin
+        AllFilled := False;
+        Break;
+      end;
+    end;
+    if not AllFilled then
+    begin
+      MsgBox(ExpandConstant('{cm:SrvFieldsRequired}'), mbError, MB_OK);
+      Result := False;
     end;
   end;
 end;
 
-(* ----------------------------------------------------------------- *)
-(* Archivo temporal de contraseña (evita pasar por línea de comando)  *)
-(* ----------------------------------------------------------------- *)
+(* ================================================================= *)
+(* ARCHIVOS DE CONFIGURACION                                          *)
+(* ================================================================= *)
 procedure SavePasswordToFile;
 begin
   SaveStringToFile(ExpandConstant('{tmp}\svcpwd.dat'), CredPage.Values[0], False);
 end;
 
-(* ----------------------------------------------------------------- *)
-(* PrepareToInstall: detener servicio existente antes de copiar       *)
-(* archivos, para evitar bloqueos en node.exe / nssm.exe             *)
-(* ----------------------------------------------------------------- *)
+procedure WriteEnvFile;
+var
+  EnvPath, JwtSecret, Content: String;
+  ExistingContent: AnsiString;
+begin
+  EnvPath := ExpandConstant('{app}\backend\.env');
+
+  { Preservar JWT_SECRET en upgrades; generar nuevo en primera instalacion }
+  JwtSecret := '';
+  if FileExists(EnvPath) then
+  begin
+    if LoadStringFromFile(EnvPath, ExistingContent) then
+    begin
+      JwtSecret := GetEnvFileValue(ExistingContent, 'JWT_SECRET');
+      if JwtSecret = 'cambia_esto_por_un_secreto_muy_largo_y_aleatorio_en_produccion' then
+        JwtSecret := '';
+    end;
+  end;
+  if JwtSecret = '' then
+    JwtSecret := GenerateRandomHex(64);
+
+  Content :=
+    '# ============================================================' + #13#10 +
+    '#  RDWeb Portal - Server configuration' + #13#10 +
+    '#  Generated by installer v' + '{#SetupSetting("AppVersion")}' + #13#10 +
+    '# ============================================================' + #13#10 + #13#10 +
+    '# --- Express Server ---' + #13#10 +
+    'PORT=3000' + #13#10 +
+    'NODE_ENV=production' + #13#10 + #13#10 +
+    '# --- JWT ---' + #13#10 +
+    'JWT_SECRET=' + JwtSecret + #13#10 +
+    'JWT_EXPIRES_IN=1h' + #13#10 + #13#10 +
+    '# --- Active Directory / LDAP ---' + #13#10 +
+    'LDAP_URL=' + ADPage.Values[0] + #13#10 +
+    'LDAP_BASE_DN=' + ADPage.Values[1] + #13#10 +
+    'AD_DOMAIN=' + ADPage.Values[2] + #13#10 +
+    'AD_SERVICE_USER=' + ADPage.Values[3] + #13#10 +
+    'AD_SERVICE_PASS=' + ADPage.Values[4] + #13#10 + #13#10 +
+    '# --- RD Connection Broker ---' + #13#10 +
+    'RDCB_SERVER=' + ServersPage.Values[0] + #13#10 + #13#10 +
+    '# --- RDP ---' + #13#10 +
+    'RDP_GATEWAY_CREDENTIAL_SOURCE=0' + #13#10 +
+    'RDP_PROMPT_CREDENTIAL_ONCE=true' + #13#10 +
+    'RDP_PROMPT_FOR_CREDENTIALS_ON_CLIENT=true' + #13#10 +
+    'RDP_USE_MULTIMON=false' + #13#10 +
+    'RDP_SPAN_MONITORS=false' + #13#10 + #13#10 +
+    '# --- Simulation Mode ---' + #13#10 +
+    'SIMULATION_MODE=false' + #13#10 + #13#10 +
+    '# --- Myrtille (browser-based RDP) ---' + #13#10 +
+    'MYRTILLE_URL=' + ServersPage.Values[1] + #13#10;
+
+  SaveStringToFile(EnvPath, Content, False);
+end;
+
+(* ================================================================= *)
+(* PREPARACION E INSTALACION                                          *)
+(* ================================================================= *)
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   RC: Integer;
@@ -250,29 +614,27 @@ begin
     '', SW_HIDE, ewWaitUntilTerminated, RC);
 end;
 
-(* ----------------------------------------------------------------- *)
-(* Post-instalación: ejecutar scripts de configuración con control    *)
-(* de errores (exit code) y mensajes al usuario                      *)
-(* ----------------------------------------------------------------- *)
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   RC: Integer;
   LogDir: String;
 begin
-  { Guardar contraseña a archivo temporal antes de la copia de archivos }
   if CurStep = ssInstall then
   begin
     if WizardIsComponentSelected('backend') then
       SavePasswordToFile;
   end;
 
-  { Tras la copia de archivos: configurar IIS y servicio }
   if CurStep = ssPostInstall then
   begin
     LogDir := ExpandConstant('{app}\backend\logs');
     ForceDirectories(LogDir);
 
-    { ── Fase 1: Prerrequisitos IIS ── }
+    { -- Generar .env con los valores del wizard -- }
+    if WizardIsComponentSelected('backend') then
+      WriteEnvFile;
+
+    { -- Prerrequisitos IIS -- }
     if WizardIsComponentSelected('prereqs') then
     begin
       WizardForm.StatusLabel.Caption := ExpandConstant('{cm:StatusPrereqs}');
@@ -286,7 +648,7 @@ begin
       end;
     end;
 
-    { ── Fase 2: Servicio Backend ── }
+    { -- Servicio Backend -- }
     if WizardIsComponentSelected('backend') then
     begin
       WizardForm.StatusLabel.Caption := ExpandConstant('{cm:StatusService}');
@@ -302,14 +664,13 @@ begin
       end;
     end;
 
-    { Mostrar recordatorios finales }
     MsgBox(ExpandConstant('{cm:DoneReminder}'), mbInformation, MB_OK);
   end;
 end;
 
-(* ----------------------------------------------------------------- *)
-(* Limpieza: eliminar archivo temporal de contraseña al cerrar        *)
-(* ----------------------------------------------------------------- *)
+(* ================================================================= *)
+(* LIMPIEZA                                                           *)
+(* ================================================================= *)
 procedure DeinitializeSetup;
 var
   PwdFile: String;
