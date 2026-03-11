@@ -27,6 +27,12 @@
   #define SrcWebConfig "frontend\web.config"
 #endif
 
+; Tipo de backend: "express" (Node.js) o "python" (FastAPI)
+; build.ps1 lo sobreescribe con /DBackendType=...
+#ifndef BackendType
+  #define BackendType "express"
+#endif
+
 ; Timestamp de compilación (formato: yyyy-MM-dd_HH-mm)
 #define MyTimestamp GetDateTimeString('yyyy-MM-dd_HH-mm', '-', '-')
 
@@ -57,7 +63,11 @@ ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
 CloseApplications=no
 UninstallDisplayName={#MyAppName}
+#if BackendType == "python"
+UninstallDisplayIcon={app}\backend\main.exe
+#else
 UninstallDisplayIcon={app}\backend\node.exe
+#endif
 ; Mínimo Windows Server 2016 / Windows 10
 MinVersion=10.0
 
@@ -74,7 +84,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [CustomMessages]
 ; --- Español ---
 spanish.ComponentPrereqs=Prerrequisitos IIS (URL Rewrite 2.1 y ARR 3.0)
+#if BackendType == "python"
+spanish.ComponentBackend=Backend Python (API + Servicio Windows)
+#else
 spanish.ComponentBackend=Backend Node.js (API + Servicio Windows)
+#endif
 spanish.ComponentFrontend=Frontend Angular (archivos estáticos IIS)
 spanish.CredTitle=Credenciales del Servicio
 spanish.CredDescription=El servicio backend se ejecutará bajo la cuenta de dominio indicada abajo.%nIngrese la contraseña para configurar el servicio de Windows.
@@ -102,11 +116,21 @@ spanish.ADFieldsRequired=Todos los campos de Active Directory son obligatorios.
 spanish.SrvTitle=Servidores y Servicios
 spanish.SrvDescription=Configure las direcciones de los servidores que utiliza el portal.
 spanish.SrvRDCB=Servidor RD Connection Broker:
-spanish.SrvMyrtille=URL de Myrtille (RDP en navegador):
 spanish.SrvFieldsRequired=Debe completar todos los campos de servidores.
+spanish.CertTitle=Certificado SSL
+spanish.CertDescription=Seleccione el certificado SSL que se usara para el sitio HTTPS del portal.%nSolo se muestran certificados validos del almacen LocalMachine\My con clave privada.
+spanish.CertLabel=Certificado:
+spanish.CertEmpty=Debe seleccionar un certificado SSL.
+spanish.CertNone=No se encontraron certificados SSL validos en este equipo.%nInstale un certificado en LocalMachine\My antes de continuar.
+spanish.StatusIISSite=Configurando sitio IIS...
+spanish.ErrIISSite=Ocurrieron errores al configurar el sitio IIS.%n%nRevise el log en:%n%1\install-iis-site.log
 ; --- English ---
 english.ComponentPrereqs=IIS Prerequisites (URL Rewrite 2.1 & ARR 3.0)
+#if BackendType == "python"
+english.ComponentBackend=Python Backend (API + Windows Service)
+#else
 english.ComponentBackend=Node.js Backend (API + Windows Service)
+#endif
 english.ComponentFrontend=Angular Frontend (IIS static files)
 english.CredTitle=Service Credentials
 english.CredDescription=The backend service will run under the domain account shown below.%nEnter the password to configure the Windows service.
@@ -134,8 +158,14 @@ english.ADFieldsRequired=All Active Directory fields are required.
 english.SrvTitle=Servers and Services
 english.SrvDescription=Configure the server addresses used by the portal.
 english.SrvRDCB=RD Connection Broker server:
-english.SrvMyrtille=Myrtille URL (browser-based RDP):
 english.SrvFieldsRequired=All server fields are required.
+english.CertTitle=SSL Certificate
+english.CertDescription=Select the SSL certificate to use for the portal HTTPS site.%nOnly valid certificates from the LocalMachine\My store with a private key are shown.
+english.CertLabel=Certificate:
+english.CertEmpty=You must select an SSL certificate.
+english.CertNone=No valid SSL certificates were found on this machine.%nPlease install a certificate in LocalMachine\My before continuing.
+english.StatusIISSite=Configuring IIS site...
+english.ErrIISSite=Errors occurred while configuring the IIS site.%n%nCheck the log at:%n%1\install-iis-site.log
 
 ; =====================================================================
 ; TIPOS Y COMPONENTES
@@ -153,7 +183,14 @@ Name: "frontend"; Description: "{cm:ComponentFrontend}"; Types: full
 ; ARCHIVOS
 ; =====================================================================
 [Files]
-; --- Backend: src, node_modules, package.json, nssm.exe, node.exe ---
+#if BackendType == "python"
+; --- Backend Python: main.exe (PyInstaller) + nssm.exe ---
+Source: "{#SrcBackend}\main.exe"; DestDir: "{app}\backend"; \
+  Components: backend; Flags: ignoreversion
+Source: "{#SrcBackend}\nssm.exe"; DestDir: "{app}\backend"; \
+  Components: backend; Flags: ignoreversion
+#else
+; --- Backend Express: src, node_modules, package.json, nssm.exe, node.exe ---
 Source: "{#SrcBackend}\src\*"; DestDir: "{app}\backend\src"; \
   Components: backend; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SrcBackend}\node_modules\*"; DestDir: "{app}\backend\node_modules"; \
@@ -164,6 +201,7 @@ Source: "{#SrcBackend}\nssm.exe"; DestDir: "{app}\backend"; \
   Components: backend; Flags: ignoreversion
 Source: "{#SrcBackend}\node.exe"; DestDir: "{app}\backend"; \
   Components: backend; Flags: ignoreversion
+#endif
 
 ; .env se genera desde el asistente (ver WriteEnvFile en [Code])
 
@@ -183,6 +221,7 @@ Source: "{#SrcPrereqs}\*"; DestDir: "{tmp}\prereqs"; \
 ; --- Scripts de instalación (temporales — Inno Setup los invoca y los descarta) ---
 Source: "scripts\setup-iis-prereqs.ps1";    DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 Source: "scripts\setup-backend-service.ps1"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
+Source: "scripts\setup-iis-site.ps1";        DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 
 ; --- Script de desinstalación (persiste junto a la aplicación) ---
 Source: "scripts\uninstall-backend-service.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
@@ -213,6 +252,11 @@ var
   CredPage: TInputQueryWizardPage;
   ADPage: TInputQueryWizardPage;
   ServersPage: TInputQueryWizardPage;
+  CertPage: TWizardPage;
+  CertCombo: TNewComboBox;
+  CertThumbprints: TArrayOfString;
+  CertCount: Integer;
+  CertsEnumerated: Boolean;
   EnvLoaded: Boolean;
 
 (* ================================================================= *)
@@ -315,8 +359,6 @@ begin
   if Val <> '' then ADPage.Values[4] := Val;
   Val := GetEnvFileValue(Content, 'RDCB_SERVER');
   if Val <> '' then ServersPage.Values[0] := Val;
-  Val := GetEnvFileValue(Content, 'MYRTILLE_URL');
-  if Val <> '' then ServersPage.Values[1] := Val;
 end;
 
 (* ================================================================= *)
@@ -363,29 +405,109 @@ begin
     ''
   );
   ServersPage.Add(ExpandConstant('{cm:SrvRDCB}'), False);
-  ServersPage.Add(ExpandConstant('{cm:SrvMyrtille}'), False);
 
-  ServersPage.Values[1] := 'https://localhost/Myrtille';
+  { -- Pagina 4: Certificado SSL -- }
+  CertPage := CreateCustomPage(
+    ServersPage.ID,
+    ExpandConstant('{cm:CertTitle}'),
+    ExpandConstant('{cm:CertDescription}')
+  );
+
+  { Label }
+  with TNewStaticText.Create(CertPage) do
+  begin
+    Parent   := CertPage.Surface;
+    Caption  := ExpandConstant('{cm:CertLabel}');
+    Left     := 0;
+    Top      := 8;
+    Width    := CertPage.SurfaceWidth;
+  end;
+
+  { ComboBox para certificados }
+  CertCombo := TNewComboBox.Create(CertPage);
+  CertCombo.Parent := CertPage.Surface;
+  CertCombo.Left   := 0;
+  CertCombo.Top    := 28;
+  CertCombo.Width  := CertPage.SurfaceWidth;
+  CertCombo.Style  := csDropDownList;
+
+  CertCount := 0;
+  CertsEnumerated := False;
 
   EnvLoaded := False;
 end;
 
 (* Cargar .env existente al llegar a CredPage, cuando {app} ya esta disponible *)
+(* Enumerar certificados SSL al llegar a CertPage *)
 procedure CurPageChanged(CurPageID: Integer);
+var
+  RC: Integer;
+  TmpFile, ScriptFile, ScriptContent: String;
+  Lines: TArrayOfString;
+  I, P: Integer;
+  Line: String;
 begin
   if (CurPageID = CredPage.ID) and (not EnvLoaded) then
   begin
     LoadExistingEnvValues;
     EnvLoaded := True;
   end;
+
+  { Enumerar certificados SSL la primera vez que se muestra la pagina }
+  if (CurPageID = CertPage.ID) and (not CertsEnumerated) then
+  begin
+    CertsEnumerated := True;
+    TmpFile    := ExpandConstant('{tmp}\certs_list.txt');
+    ScriptFile := ExpandConstant('{tmp}\enum-certs.ps1');
+
+    ScriptContent :=
+      'Get-ChildItem Cert:\LocalMachine\My | ' +
+      'Where-Object { $_.HasPrivateKey -and $_.NotAfter -gt (Get-Date) } | ' +
+      'ForEach-Object { $_.Thumbprint + [char]124 + $_.Subject + '' (exp: '' + $_.NotAfter.ToString(''yyyy-MM-dd'') + '')'' } | ' +
+      'Out-File -Encoding UTF8 ''' + TmpFile + '''';
+
+    SaveStringToFile(ScriptFile, ScriptContent, False);
+    Exec('powershell.exe',
+      '-ExecutionPolicy Bypass -NoProfile -File "' + ScriptFile + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, RC);
+    DeleteFile(ScriptFile);
+
+    if FileExists(TmpFile) then
+    begin
+      if LoadStringsFromFile(TmpFile, Lines) then
+      begin
+        for I := 0 to GetArrayLength(Lines) - 1 do
+        begin
+          Line := Trim(Lines[I]);
+          if Line <> '' then
+          begin
+            P := Pos('|', Line);
+            if P > 0 then
+            begin
+              SetArrayLength(CertThumbprints, CertCount + 1);
+              CertThumbprints[CertCount] := Copy(Line, 1, P - 1);
+              CertCombo.Items.Add(Copy(Line, P + 1, Length(Line)));
+              CertCount := CertCount + 1;
+            end;
+          end;
+        end;
+      end;
+      DeleteFile(TmpFile);
+    end;
+
+    if CertCount > 0 then
+      CertCombo.ItemIndex := 0;
+  end;
 end;
 
-(* Ocultar paginas de configuracion si no se instala el backend *)
+(* Ocultar paginas si no se instala el componente correspondiente *)
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
   if (PageID = CredPage.ID) or (PageID = ADPage.ID) or (PageID = ServersPage.ID) then
     Result := not WizardIsComponentSelected('backend');
+  if (PageID = CertPage.ID) then
+    Result := not WizardIsComponentSelected('frontend');
 end;
 
 (* ================================================================= *)
@@ -518,7 +640,7 @@ begin
   if CurPageID = ServersPage.ID then
   begin
     AllFilled := True;
-    for I := 0 to 1 do
+    for I := 0 to 0 do
     begin
       if Trim(ServersPage.Values[I]) = '' then
       begin
@@ -529,6 +651,21 @@ begin
     if not AllFilled then
     begin
       MsgBox(ExpandConstant('{cm:SrvFieldsRequired}'), mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+
+  { -- Certificado SSL -- }
+  if CurPageID = CertPage.ID then
+  begin
+    if CertCount = 0 then
+    begin
+      MsgBox(ExpandConstant('{cm:CertNone}'), mbError, MB_OK);
+      Result := False;
+    end
+    else if CertCombo.ItemIndex < 0 then
+    begin
+      MsgBox(ExpandConstant('{cm:CertEmpty}'), mbError, MB_OK);
       Result := False;
     end;
   end;
@@ -568,7 +705,11 @@ begin
     '#  RDWeb Portal - Server configuration' + #13#10 +
     '#  Generated by installer v' + '{#SetupSetting("AppVersion")}' + #13#10 +
     '# ============================================================' + #13#10 + #13#10 +
+#if BackendType == "python"
+    '# --- FastAPI Server ---' + #13#10 +
+#else
     '# --- Express Server ---' + #13#10 +
+#endif
     'PORT=3000' + #13#10 +
     'NODE_ENV=production' + #13#10 + #13#10 +
     '# --- JWT ---' + #13#10 +
@@ -589,9 +730,7 @@ begin
     'RDP_USE_MULTIMON=false' + #13#10 +
     'RDP_SPAN_MONITORS=false' + #13#10 + #13#10 +
     '# --- Simulation Mode ---' + #13#10 +
-    'SIMULATION_MODE=false' + #13#10 + #13#10 +
-    '# --- Myrtille (browser-based RDP) ---' + #13#10 +
-    'MYRTILLE_URL=' + ServersPage.Values[1] + #13#10;
+    'SIMULATION_MODE=false' + #13#10;
 
   SaveStringToFile(EnvPath, Content, False);
 end;
@@ -656,11 +795,28 @@ begin
         ExpandConstant('-ExecutionPolicy Bypass -NoProfile -File "{tmp}\setup-backend-service.ps1"' +
           ' -BackendDir "{app}\backend"' +
           ' -ServiceName "{#ServiceName}"' +
+          ' -BackendType "{#BackendType}"' +
           ' -PasswordFile "{tmp}\svcpwd.dat"' +
           ' -LogFile "{app}\backend\logs\install-service.log"'),
         '', SW_HIDE, ewWaitUntilTerminated, RC) or (RC <> 0) then
       begin
         MsgBox(FmtMessage(ExpandConstant('{cm:ErrService}'), [LogDir]), mbError, MB_OK);
+      end;
+    end;
+
+    { -- Sitio IIS (HTTPS + Reverse Proxy) -- }
+    if WizardIsComponentSelected('frontend') and (CertCount > 0) and (CertCombo.ItemIndex >= 0) then
+    begin
+      WizardForm.StatusLabel.Caption := ExpandConstant('{cm:StatusIISSite}');
+      if not Exec('powershell.exe',
+        ExpandConstant('-ExecutionPolicy Bypass -NoProfile -File "{tmp}\setup-iis-site.ps1"' +
+          ' -SiteName "{#MyAppName}"' +
+          ' -FrontendDir "{app}\frontend"' +
+          ' -CertThumbprint "') + CertThumbprints[CertCombo.ItemIndex] +
+          ExpandConstant('" -LogFile "{app}\backend\logs\install-iis-site.log"'),
+        '', SW_HIDE, ewWaitUntilTerminated, RC) or (RC <> 0) then
+      begin
+        MsgBox(FmtMessage(ExpandConstant('{cm:ErrIISSite}'), [LogDir]), mbError, MB_OK);
       end;
     end;
 

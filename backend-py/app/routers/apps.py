@@ -21,7 +21,7 @@ logger = logging.getLogger("rdweb.apps")
 router = APIRouter(prefix="/api/apps", tags=["apps"])
 
 
-@router.get("/")
+@router.get("")
 async def list_apps(user: UserPayload = Depends(authenticate)):
     logger.info("GET /api/apps → usuario: %s", user.username)
     try:

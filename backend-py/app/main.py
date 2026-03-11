@@ -107,8 +107,10 @@ if __name__ == "__main__":
 
     _banner()
 
+    # Pasar el objeto app directamente en lugar del string "app.main:app"
+    # para evitar problemas de importación cuando el cwd no es backend-py/.
     uvicorn.run(
-        "app.main:app",
+        app,
         host="0.0.0.0",
         port=config.PORT,
         log_level="info",

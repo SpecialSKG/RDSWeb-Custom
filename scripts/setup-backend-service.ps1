@@ -6,7 +6,8 @@ param(
     [Parameter(Mandatory)][string]$BackendDir,
     [Parameter(Mandatory)][string]$ServiceName,
     [Parameter(Mandatory)][string]$PasswordFile,
-    [Parameter(Mandatory)][string]$LogFile
+    [Parameter(Mandatory)][string]$LogFile,
+    [string]$BackendType = "express"
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,13 +24,19 @@ try {
     # ── Resolución de rutas ──────────────────────────────────────────
     $ServiceUser = "$env:USERDOMAIN\$env:USERNAME"
     $NssmExe     = "$BackendDir\nssm.exe"
-    $NodeExe     = "$BackendDir\node.exe"
-    $AppEntry    = "$BackendDir\src\index.js"
     $LogDir      = "$BackendDir\logs"
 
-    if (-not (Test-Path $NssmExe))  { throw "nssm.exe no encontrado en: $NssmExe" }
-    if (-not (Test-Path $NodeExe))  { throw "node.exe no encontrado en: $NodeExe" }
-    if (-not (Test-Path $AppEntry)) { throw "index.js no encontrado en: $AppEntry" }
+    if (-not (Test-Path $NssmExe)) { throw "nssm.exe no encontrado en: $NssmExe" }
+
+    if ($BackendType -eq "python") {
+        $MainExe = "$BackendDir\main.exe"
+        if (-not (Test-Path $MainExe)) { throw "main.exe no encontrado en: $MainExe" }
+    } else {
+        $NodeExe  = "$BackendDir\node.exe"
+        $AppEntry = "$BackendDir\src\index.js"
+        if (-not (Test-Path $NodeExe))  { throw "node.exe no encontrado en: $NodeExe" }
+        if (-not (Test-Path $AppEntry)) { throw "index.js no encontrado en: $AppEntry" }
+    }
 
     # ── Helper: ejecutar nssm y abortar si falla ─────────────────────
     function Invoke-Nssm {
@@ -69,10 +76,16 @@ try {
     }
 
     # ── 3. Instalar nuevo servicio ───────────────────────────────────
-    Write-Host "Instalando servicio '$ServiceName'..."
-    Invoke-Nssm @('install', $ServiceName, $NodeExe, "`"$AppEntry`"")
-    Invoke-Nssm @('set', $ServiceName, 'AppDirectory',       $BackendDir)
-    Invoke-Nssm @('set', $ServiceName, 'AppEnvironmentExtra', 'NODE_ENV=production')
+    Write-Host "Instalando servicio '$ServiceName' (backend: $BackendType)..."
+    if ($BackendType -eq "python") {
+        Invoke-Nssm @('install', $ServiceName, $MainExe)
+        Invoke-Nssm @('set', $ServiceName, 'AppDirectory',       $BackendDir)
+        Invoke-Nssm @('set', $ServiceName, 'AppEnvironmentExtra', 'PYTHONUNBUFFERED=1')
+    } else {
+        Invoke-Nssm @('install', $ServiceName, $NodeExe, "`"$AppEntry`"")
+        Invoke-Nssm @('set', $ServiceName, 'AppDirectory',       $BackendDir)
+        Invoke-Nssm @('set', $ServiceName, 'AppEnvironmentExtra', 'NODE_ENV=production')
+    }
     Invoke-Nssm @('set', $ServiceName, 'ObjectName',         $ServiceUser, $PlainPass)
 
     # ── 4. Configurar logging (stdout + stderr, rotación 5 MB) ──────

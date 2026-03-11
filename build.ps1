@@ -12,6 +12,21 @@ Write-Host "========================================================" -Foregroun
 Write-Host " Iniciando Construcción y Empaquetado de Producción" -ForegroundColor Cyan
 Write-Host "========================================================" -ForegroundColor Cyan
 
+# ── Selección del tipo de Backend ─────────────────────────────────────
+Write-Host ""
+Write-Host "Seleccione el tipo de backend a empaquetar:" -ForegroundColor Magenta
+Write-Host "  [1] Express (Node.js)  — actual" -ForegroundColor White
+Write-Host "  [2] Python  (FastAPI)  — nuevo" -ForegroundColor White
+Write-Host ""
+$choice = Read-Host "Opcion (1/2) [por defecto: 1]"
+if ($choice -eq "2") {
+    $BackendType = "python"
+    Write-Host "  -> Backend seleccionado: Python (FastAPI)" -ForegroundColor Green
+} else {
+    $BackendType = "express"
+    Write-Host "  -> Backend seleccionado: Express (Node.js)" -ForegroundColor Green
+}
+
 # 1. Limpieza de compilaciones anteriores
 Write-Host "`n[1/7] Limpiando entorno..." -ForegroundColor Yellow
 if (Test-Path $ReleaseDir) { Remove-Item -Path $ReleaseDir -Recurse -Force }
@@ -39,14 +54,48 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # 4. Preparación del Backend
-Write-Host "`n[4/7] Instalando dependencias del Backend (Solo Producción)..." -ForegroundColor Yellow
-Set-Location "$ProjectRoot\backend"
-if (Test-Path "node_modules") { Remove-Item -Path "node_modules" -Recurse -Force }
-# Instala solo dependencias de prod (ignora devDependencies como nodemon, jest, etc)
-cmd /c "npm install --production"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ERROR] Falló la instalación de dependencias del backend." -ForegroundColor Red
-    Exit
+if ($BackendType -eq "python") {
+    Write-Host "`n[4/7] Compilando Backend Python (PyInstaller)..." -ForegroundColor Yellow
+    Set-Location "$ProjectRoot\backend-py"
+
+    # Verificar que Poetry esté disponible
+    if (-not (Get-Command poetry -ErrorAction SilentlyContinue)) {
+        Write-Host "[ERROR] Poetry no encontrado. Instalelo desde: https://python-poetry.org" -ForegroundColor Red
+        Exit
+    }
+
+    # Instalar dependencias (incluye PyInstaller en dev)
+    Write-Host "  -> Instalando dependencias con Poetry..." -ForegroundColor DarkGray
+    cmd /c "poetry install"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] Fallo la instalacion de dependencias de Python." -ForegroundColor Red
+        Exit
+    }
+
+    # Limpiar compilaciones anteriores de PyInstaller
+    if (Test-Path "dist") { Remove-Item -Path "dist" -Recurse -Force }
+    if (Test-Path "build") { Remove-Item -Path "build" -Recurse -Force }
+
+    # Empaquetar con PyInstaller
+    Write-Host "  -> Empaquetando con PyInstaller..." -ForegroundColor DarkGray
+    cmd /c "poetry run pyinstaller backend.spec --clean --noconfirm"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] Fallo la compilacion de PyInstaller." -ForegroundColor Red
+        Exit
+    }
+    if (-not (Test-Path "$ProjectRoot\backend-py\dist\main.exe")) {
+        Write-Host "[ERROR] No se genero el ejecutable dist\main.exe" -ForegroundColor Red
+        Exit
+    }
+} else {
+    Write-Host "`n[4/7] Instalando dependencias del Backend (Solo Producción)..." -ForegroundColor Yellow
+    Set-Location "$ProjectRoot\backend"
+    if (Test-Path "node_modules") { Remove-Item -Path "node_modules" -Recurse -Force }
+    cmd /c "npm install --production"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] Falló la instalación de dependencias del backend." -ForegroundColor Red
+        Exit
+    }
 }
 
 # 5. Ensamblaje de la carpeta de Release
@@ -79,17 +128,28 @@ else {
 Copy-Item -Path "$ProjectRoot\prereqs" -Destination $ReleaseDir -Recurse -Force
 
 # --- Copiar Backend ---
-Copy-Item -Path "$ProjectRoot\backend\src" -Destination $TargetBack -Recurse -Force
-Copy-Item -Path "$ProjectRoot\backend\node_modules" -Destination $TargetBack -Recurse -Force
-Copy-Item -Path "$ProjectRoot\backend\package.json" -Destination $TargetBack -Force
-if (Test-Path "$ProjectRoot\backend\.env") {
-    Copy-Item -Path "$ProjectRoot\backend\.env" -Destination $TargetBack -Force
+if ($BackendType -eq "python") {
+    # Python: solo el ejecutable empaquetado + nssm
+    Copy-Item -Path "$ProjectRoot\backend-py\dist\main.exe" -Destination $TargetBack -Force
+    Copy-Item -Path "$ProjectRoot\backend\nssm.exe" -Destination $TargetBack -Force
+    if (Test-Path "$ProjectRoot\backend-py\.env") {
+        Copy-Item -Path "$ProjectRoot\backend-py\.env" -Destination $TargetBack -Force
+    } else {
+        Write-Host "  -> [NOTA] No se encontro .env — el instalador lo generara." -ForegroundColor DarkYellow
+    }
+} else {
+    # Express: src, node_modules, package.json, binarios
+    Copy-Item -Path "$ProjectRoot\backend\src" -Destination $TargetBack -Recurse -Force
+    Copy-Item -Path "$ProjectRoot\backend\node_modules" -Destination $TargetBack -Recurse -Force
+    Copy-Item -Path "$ProjectRoot\backend\package.json" -Destination $TargetBack -Force
+    if (Test-Path "$ProjectRoot\backend\.env") {
+        Copy-Item -Path "$ProjectRoot\backend\.env" -Destination $TargetBack -Force
+    } else {
+        Write-Host "  -> [NOTA] No se encontró .env — recuerde crearlo en el servidor." -ForegroundColor DarkYellow
+    }
+    Copy-Item -Path "$ProjectRoot\backend\nssm.exe" -Destination $TargetBack -Force
+    Copy-Item -Path "$ProjectRoot\backend\node.exe" -Destination $TargetBack -Force
 }
-else {
-    Write-Host "  -> [NOTA] No se encontró .env — recuerde crearlo en el servidor." -ForegroundColor DarkYellow
-}
-Copy-Item -Path "$ProjectRoot\backend\nssm.exe" -Destination $TargetBack -Force
-Copy-Item -Path "$ProjectRoot\backend\node.exe" -Destination $TargetBack -Force
 
 # --- Copiar Scripts auxiliares (también en ZIP de respaldo) ---
 if (Test-Path "$ProjectRoot\scripts") {
@@ -132,6 +192,7 @@ Write-Host "  -> Usando: $ISCC" -ForegroundColor DarkGray
 Set-Location $ProjectRoot
 & $ISCC /O"$ReleasesDir" /F"RDWeb-Portal-Installer-$Timestamp" `
     /DMyAppVersion="1.0.0" `
+    /DBackendType="$BackendType" `
     /DSrcBackend="$ReleaseDir\backend" `
     /DSrcFrontend="$ReleaseDir\frontend" `
     /DSrcPrereqs="$ReleaseDir\prereqs" `
@@ -148,8 +209,9 @@ if ($LASTEXITCODE -ne 0) {
 Remove-Item -Path $ReleaseDir -Recurse -Force
 
 Write-Host "`n========================================================" -ForegroundColor Green
-Write-Host " ¡CONSTRUCCIÓN COMPLETADA CON ÉXITO!" -ForegroundColor Green
+Write-Host " CONSTRUCCION COMPLETADA CON EXITO! ($BackendType)" -ForegroundColor Green
 Write-Host "========================================================" -ForegroundColor Green
+Write-Host "Backend empaquetado: $BackendType" -ForegroundColor Cyan
 Write-Host "ZIP de respaldo:"
 Write-Host "  $ZipFile" -ForegroundColor DarkGray
 Write-Host "Instalador EXE (distribuir este):"
