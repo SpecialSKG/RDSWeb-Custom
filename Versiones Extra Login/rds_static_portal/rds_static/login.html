@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portal RDS - Login</title>
+  <link rel="stylesheet" href="portal.css">
+</head>
+<body data-page="login">
+  <div class="background"></div>
+
+  <main class="page-shell page-shell--center">
+    <section class="card login-card">
+      <div class="top-actions">
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Cambiar tema">🌙</button>
+      </div>
+
+      <div class="brand-block brand-block--center">
+        <div class="brand-seal" aria-hidden="true">
+          <svg viewBox="0 0 64 64" role="img">
+            <circle cx="32" cy="32" r="30" fill="currentColor" opacity="0.12"></circle>
+            <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="2"></circle>
+            <path d="M32 16l3.4 8.2 8.8.7-6.7 5.8 2.1 8.6L32 34.7l-7.6 4.6 2.1-8.6-6.7-5.8 8.8-.7L32 16z" fill="currentColor"></path>
+          </svg>
+        </div>
+        <div class="brand-copy">
+          <p class="eyebrow">DINAFI - USC</p>
+          <h1>Portal Web Apps MH</h1>
+          <p class="muted">Versión estática separada de ASP.NET para pruebas visuales y navegación local.</p>
+        </div>
+      </div>
+
+      <form id="login-form" class="form-stack" novalidate>
+        <div class="field">
+          <label for="username">Usuario</label>
+          <input id="username" name="username" type="text" placeholder="dominio\\usuario" autocomplete="username" required>
+        </div>
+
+        <div class="field">
+          <label for="password">Contraseña</label>
+          <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+        </div>
+
+        <label class="check-row">
+          <input id="private-machine" type="checkbox" checked>
+          <span>Equipo privado</span>
+        </label>
+
+        <div id="login-error" class="message message--error" hidden></div>
+
+        <button id="submit-login" class="primary-btn" type="submit">
+          <span class="btn-label">Ingresar</span>
+          <span class="spinner" aria-hidden="true"></span>
+        </button>
+      </form>
+
+      <div class="note-block">
+        <p>Esta versión no autentica contra Active Directory. Solo simula la experiencia para que puedas levantarla como HTML plano.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="portal.js"></script>
+</body>
+</html>
