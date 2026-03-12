@@ -37,7 +37,7 @@
 #define MyTimestamp GetDateTimeString('yyyy-MM-dd_HH-mm', '-', '-')
 
 #define MyAppName      "Portal RDS Web"
-#define MyAppPublisher "RDS-DINAFI-USC"
+#define MyAppPublisher "MH-DINAFI-USC"
 #define ServiceName    "RDSWeb"
 
 ; =====================================================================
@@ -126,8 +126,10 @@ spanish.CertDescription=Seleccione el certificado SSL que se usara para el sitio
 spanish.CertLabel=Certificado:
 spanish.CertEmpty=Debe seleccionar un certificado SSL.
 spanish.CertNone=No se encontraron certificados SSL validos en este equipo.%nInstale un certificado en LocalMachine\My antes de continuar.
+spanish.HostLabel=Nombre de host (FQDN):
+spanish.HostEmpty=Debe ingresar el nombre de host del sitio (ej: portal.midominio.com).
 spanish.StatusIISSite=Configurando sitio IIS...
-spanish.ErrIISSite=Ocurrieron errores al configurar el sitio IIS.%n%nRevise el log en:%n%1\install-iis-site.log
+spanish.ErrIISSite=Ocurrieron errores al configurar el sitio IIS.%n%nRevise los logs en:%n%1\install-iis-site.log%n%1\install-iis-site-debug.log
 ; --- English ---
 english.ComponentPrereqs=IIS Prerequisites (URL Rewrite 2.1 & ARR 3.0)
 #if BackendType == "python"
@@ -168,8 +170,10 @@ english.CertDescription=Select the SSL certificate to use for the portal HTTPS s
 english.CertLabel=Certificate:
 english.CertEmpty=You must select an SSL certificate.
 english.CertNone=No valid SSL certificates were found on this machine.%nPlease install a certificate in LocalMachine\My before continuing.
+english.HostLabel=Hostname (FQDN):
+english.HostEmpty=You must enter the site hostname (e.g. portal.mydomain.com).
 english.StatusIISSite=Configuring IIS site...
-english.ErrIISSite=Errors occurred while configuring the IIS site.%n%nCheck the log at:%n%1\install-iis-site.log
+english.ErrIISSite=Errors occurred while configuring the IIS site.%n%nCheck the logs at:%n%1\install-iis-site.log%n%1\install-iis-site-debug.log
 
 ; =====================================================================
 ; TIPOS Y COMPONENTES
@@ -265,6 +269,7 @@ var
   ServersPage: TInputQueryWizardPage;
   CertPage: TWizardPage;
   CertCombo: TNewComboBox;
+  HostEdit: TNewEdit;
   CertThumbprints: TArrayOfString;
   CertCount: Integer;
   CertsEnumerated: Boolean;
@@ -441,6 +446,24 @@ begin
   CertCombo.Top    := 28;
   CertCombo.Width  := CertPage.SurfaceWidth;
   CertCombo.Style  := csDropDownList;
+
+  { Label hostname }
+  with TNewStaticText.Create(CertPage) do
+  begin
+    Parent   := CertPage.Surface;
+    Caption  := ExpandConstant('{cm:HostLabel}');
+    Left     := 0;
+    Top      := 60;
+    Width    := CertPage.SurfaceWidth;
+  end;
+
+  { Edit hostname }
+  HostEdit := TNewEdit.Create(CertPage);
+  HostEdit.Parent := CertPage.Surface;
+  HostEdit.Left   := 0;
+  HostEdit.Top    := 80;
+  HostEdit.Width  := CertPage.SurfaceWidth;
+  HostEdit.Text   := GetEnv('COMPUTERNAME') + '.' + GetEnv('USERDNSDOMAIN');
 
   CertCount := 0;
   CertsEnumerated := False;
@@ -678,6 +701,11 @@ begin
     begin
       MsgBox(ExpandConstant('{cm:CertEmpty}'), mbError, MB_OK);
       Result := False;
+    end
+    else if Trim(HostEdit.Text) = '' then
+    begin
+      MsgBox(ExpandConstant('{cm:HostEmpty}'), mbError, MB_OK);
+      Result := False;
     end;
   end;
 end;
@@ -807,7 +835,7 @@ begin
           ' -BackendDir "{app}\backend"' +
           ' -ServiceName "{#ServiceName}"' +
           ' -BackendType "{#BackendType}"' +
-          ' -PasswordFile "{tmp}\svcpwd.dat"' +
+          ' -CredentialFile "{tmp}\svcpwd.dat"' +
           ' -LogFile "{app}\backend\logs\install-service.log"'),
         '', SW_HIDE, ewWaitUntilTerminated, RC) or (RC <> 0) then
       begin
@@ -819,12 +847,19 @@ begin
     if WizardIsComponentSelected('frontend') and (CertCount > 0) and (CertCombo.ItemIndex >= 0) then
     begin
       WizardForm.StatusLabel.Caption := ExpandConstant('{cm:StatusIISSite}');
-      if not Exec('powershell.exe',
-        ExpandConstant('-ExecutionPolicy Bypass -NoProfile -File "{tmp}\setup-iis-site.ps1"' +
-          ' -SiteName "{#MyAppName}"' +
-          ' -FrontendDir "{app}\frontend"' +
-          ' -CertThumbprint "') + CertThumbprints[CertCombo.ItemIndex] +
-          ExpandConstant('" -LogFile "{app}\backend\logs\install-iis-site.log"'),
+
+      { Construir la línea de parámetros para el script IIS }
+      { Se usa cmd.exe /C con redirección 2>&1 para capturar TODOS los errores }
+      { incluyendo fallos de parseo de parámetros que ocurren antes de Start-Transcript }
+      if not Exec('cmd.exe',
+        '/C powershell.exe -ExecutionPolicy Bypass -NoProfile -File "' +
+          ExpandConstant('{tmp}\setup-iis-site.ps1') + '"' +
+          ' -SiteName "' + '{#MyAppName}' + '"' +
+          ' -FrontendDir "' + ExpandConstant('{app}\frontend') + '"' +
+          ' -CertThumbprint "' + CertThumbprints[CertCombo.ItemIndex] + '"' +
+          ' -HostName "' + Trim(HostEdit.Text) + '"' +
+          ' -LogFile "' + ExpandConstant('{app}\backend\logs\install-iis-site.log') + '"' +
+          ' >> "' + ExpandConstant('{app}\backend\logs\install-iis-site-debug.log') + '" 2>&1',
         '', SW_HIDE, ewWaitUntilTerminated, RC) or (RC <> 0) then
       begin
         MsgBox(FmtMessage(ExpandConstant('{cm:ErrIISSite}'), [LogDir]), mbError, MB_OK);

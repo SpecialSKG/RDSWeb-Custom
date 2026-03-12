@@ -1,4 +1,4 @@
-# =====================================================================
+﻿# =====================================================================
 # Desinstalación del Sitio IIS — Portal RD Web
 # Llamado por el desinstalador de Inno Setup — NO ejecutar manualmente
 # =====================================================================
@@ -21,7 +21,7 @@ if (Get-Website -Name $SiteName -ErrorAction SilentlyContinue) {
     Write-Host "Sitio eliminado."
 }
 else {
-    Write-Host "Sitio '$SiteName' no encontrado — nada que eliminar."
+    Write-Host "Sitio '$SiteName' no encontrado - nada que eliminar."
 }
 
 # ── 2. Eliminar Application Pool ────────────────────────────────────
@@ -37,7 +37,7 @@ if (Test-Path "IIS:\AppPools\$PoolName") {
     Write-Host "Application Pool eliminado."
 }
 else {
-    Write-Host "Application Pool '$PoolName' no encontrado — nada que eliminar."
+    Write-Host "Application Pool '$PoolName' no encontrado - nada que eliminar."
 }
 
 # ── 3. Reiniciar Default Web Site si existe ──────────────────────────

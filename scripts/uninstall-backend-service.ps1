@@ -21,7 +21,7 @@ if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
     }
     else {
         # Fallback: usar sc.exe si nssm no está disponible
-        Write-Host "nssm.exe no encontrado — usando sc.exe como fallback..."
+        Write-Host "nssm.exe no encontrado - usando sc.exe como fallback..."
         sc.exe delete $ServiceName
     }
 
@@ -29,7 +29,7 @@ if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
     Write-Host "Servicio eliminado."
 }
 else {
-    Write-Host "Servicio '$ServiceName' no encontrado — nada que eliminar."
+    Write-Host "Servicio '$ServiceName' no encontrado - nada que eliminar."
 }
 
 exit 0

@@ -5,7 +5,7 @@
 param(
     [Parameter(Mandatory)][string]$BackendDir,
     [Parameter(Mandatory)][string]$ServiceName,
-    [Parameter(Mandatory)][string]$PasswordFile,
+    [Parameter(Mandatory)][string]$CredentialFile,
     [Parameter(Mandatory)][string]$LogFile,
     [string]$BackendType = "express"
 )
@@ -15,11 +15,11 @@ Start-Transcript -Path $LogFile -Force
 
 try {
     # ── Leer y eliminar archivo de contraseña ────────────────────────
-    if (-not (Test-Path $PasswordFile)) {
-        throw "No se encontró el archivo de credenciales: $PasswordFile"
+    if (-not (Test-Path $CredentialFile)) {
+        throw "No se encontró el archivo de credenciales: $CredentialFile"
     }
-    $PlainPass = (Get-Content -Path $PasswordFile -Raw).Trim()
-    Remove-Item $PasswordFile -Force -ErrorAction SilentlyContinue
+    $PlainPass = (Get-Content -Path $CredentialFile -Raw).Trim()
+    Remove-Item $CredentialFile -Force -ErrorAction SilentlyContinue
 
     # ── Resolución de rutas ──────────────────────────────────────────
     $ServiceUser = "$env:USERDOMAIN\$env:USERNAME"
@@ -62,7 +62,7 @@ try {
     }
     catch [System.DirectoryServices.AccountManagement.PrincipalException] {
         Write-Host "[ADVERTENCIA] No se pudo verificar contra el dominio: $($_.Exception.Message)"
-        Write-Host "Continuando — el error se detectará al iniciar el servicio."
+        Write-Host "Continuando - el error se detectará al iniciar el servicio."
     }
 
     # ── 2. Eliminar servicio anterior si existe ──────────────────────
@@ -87,6 +87,8 @@ try {
         Invoke-Nssm @('set', $ServiceName, 'AppEnvironmentExtra', 'NODE_ENV=production')
     }
     Invoke-Nssm @('set', $ServiceName, 'ObjectName',         $ServiceUser, $PlainPass)
+    Invoke-Nssm @('set', $ServiceName, 'DisplayName',        'Portal RDS Web')
+    Invoke-Nssm @('set', $ServiceName, 'Description',        'Servicio backend (API REST) del Portal RDS Web. Gestiona autenticacion AD, publicacion de RemoteApps y generacion de archivos RDP.')
 
     # ── 4. Configurar logging (stdout + stderr, rotación 5 MB) ──────
     if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Force -Path $LogDir | Out-Null }

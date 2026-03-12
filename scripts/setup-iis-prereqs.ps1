@@ -29,7 +29,7 @@ try {
         Write-Host "URL Rewrite 2.1 instalado correctamente."
     }
     else {
-        Write-Host "URL Rewrite ya está instalado — omitiendo."
+        Write-Host "URL Rewrite ya está instalado - omitiendo."
     }
 
     # ── 2. Application Request Routing (ARR) 3.0 ────────────────────
@@ -46,7 +46,7 @@ try {
         Write-Host "ARR 3.0 instalado correctamente."
     }
     else {
-        Write-Host "ARR 3.0 ya está instalado — omitiendo."
+        Write-Host "ARR 3.0 ya está instalado - omitiendo."
     }
 
     # ── 3. Habilitar Proxy Inverso (viene apagado por defecto) ──────
@@ -56,7 +56,7 @@ try {
         Write-Host "Proxy Inverso habilitado."
     }
     else {
-        Write-Host "[ADVERTENCIA] appcmd.exe no encontrado — verificar IIS." -ForegroundColor Yellow
+        Write-Host "[ADVERTENCIA] appcmd.exe no encontrado - verificar IIS." -ForegroundColor Yellow
     }
 
     # ── 4. Reiniciar IIS para cargar los módulos recién instalados ──

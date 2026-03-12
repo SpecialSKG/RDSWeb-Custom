@@ -1,4 +1,4 @@
-# =====================================================================
+﻿# =====================================================================
 # Configuración del Sitio IIS — Portal RD Web
 # Llamado por el instalador de Inno Setup — NO ejecutar manualmente
 # =====================================================================
@@ -7,12 +7,41 @@ param(
     [Parameter(Mandatory)][string]$FrontendDir,
     [Parameter(Mandatory)][string]$CertThumbprint,
     [Parameter(Mandatory)][string]$LogFile,
+    [string]$HostName = '',
     [int]$HttpsPort  = 443,
     [int]$BackendPort = 3000
 )
 
 $ErrorActionPreference = "Stop"
-Start-Transcript -Path $LogFile -Force
+
+# ── Asegurar que el directorio del log existe ────────────────────────
+$LogDir = Split-Path -Parent $LogFile
+if ($LogDir -and -not (Test-Path $LogDir)) {
+    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+}
+
+# ── Iniciar transcript (con fallback) ────────────────────────────────
+$TranscriptStarted = $false
+try {
+    Start-Transcript -Path $LogFile -Force
+    $TranscriptStarted = $true
+} catch {
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Error al iniciar transcript: $($_.Exception.Message)" |
+        Out-File $LogFile -Force -ErrorAction SilentlyContinue
+}
+
+# ── Diagnóstico de parámetros recibidos ──────────────────────────────
+Write-Host "=== Configuracion Sitio IIS - Diagnostico ==="
+Write-Host "  PowerShell:     $($PSVersionTable.PSVersion)"
+Write-Host "  64-bit:         $([Environment]::Is64BitProcess)"
+Write-Host "  SiteName:       $SiteName"
+Write-Host "  FrontendDir:    $FrontendDir"
+Write-Host "  CertThumbprint: $CertThumbprint"
+Write-Host "  LogFile:        $LogFile"
+Write-Host "  HostName:       $HostName"
+Write-Host "  HttpsPort:      $HttpsPort"
+Write-Host "  BackendPort:    $BackendPort"
+Write-Host ""
 
 try {
     Import-Module WebAdministration -ErrorAction Stop
@@ -51,11 +80,20 @@ try {
     Get-WebBinding -Name $SiteName | Remove-WebBinding
 
     # ── 5. Agregar binding HTTPS con certificado ─────────────────────
-    Write-Host "Configurando HTTPS en puerto $HttpsPort..."
-    New-WebBinding -Name $SiteName `
-                   -Protocol "https" `
-                   -Port $HttpsPort `
-                   -IPAddress "*"
+    Write-Host "Configurando HTTPS en puerto $HttpsPort (host: $HostName)..."
+    if ($HostName -ne '') {
+        New-WebBinding -Name $SiteName `
+                       -Protocol "https" `
+                       -Port $HttpsPort `
+                       -HostHeader $HostName `
+                       -SslFlags 1 `
+                       -IPAddress "*"
+    } else {
+        New-WebBinding -Name $SiteName `
+                       -Protocol "https" `
+                       -Port $HttpsPort `
+                       -IPAddress "*"
+    }
 
     # Asignar certificado al binding
     $Binding = Get-WebBinding -Name $SiteName -Protocol "https"
@@ -63,10 +101,18 @@ try {
     Write-Host "Certificado SSL asignado correctamente."
 
     # ── 6. Agregar binding HTTP (redirect a HTTPS) ───────────────────
-    New-WebBinding -Name $SiteName `
-                   -Protocol "http" `
-                   -Port 80 `
-                   -IPAddress "*"
+    if ($HostName -ne '') {
+        New-WebBinding -Name $SiteName `
+                       -Protocol "http" `
+                       -Port 80 `
+                       -HostHeader $HostName `
+                       -IPAddress "*"
+    } else {
+        New-WebBinding -Name $SiteName `
+                       -Protocol "http" `
+                       -Port 80 `
+                       -IPAddress "*"
+    }
     Write-Host "Binding HTTP :80 agregado (redireccion a HTTPS via web.config)."
 
     # ── 7. Configurar Application Pool ───────────────────────────────
@@ -91,7 +137,7 @@ try {
             break
         }
         catch {
-            Write-Host "Intento $i/$MaxRetries — esperando a que IIS registre el sitio..."
+            Write-Host "Intento $i/$MaxRetries - esperando a que IIS registre el sitio..."
             if ($i -eq $MaxRetries) {
                 Write-Host "ADVERTENCIA: No se pudo iniciar el sitio automaticamente. IIS lo iniciara al recibir la primera peticion."
             }
@@ -107,11 +153,18 @@ try {
     Write-Host "  (El reverse proxy se configura via web.config del frontend)"
     Write-Host ""
 
-    Stop-Transcript
+    if ($TranscriptStarted) { Stop-Transcript }
     exit 0
 }
 catch {
-    Write-Host "ERROR: $($_.Exception.Message)"
-    Stop-Transcript
+    $errText = $_.Exception.Message
+    $errStack = $_.ScriptStackTrace
+    Write-Host "ERROR: $errText"
+    Write-Host "STACK: $errStack"
+    if ($TranscriptStarted) { Stop-Transcript }
+    # Escribir error al log aunque transcript haya fallado
+    $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    "$ts - ERROR: $errText" | Out-File $LogFile -Append -ErrorAction SilentlyContinue
+    "STACK: $errStack" | Out-File $LogFile -Append -ErrorAction SilentlyContinue
     exit 1
 }
