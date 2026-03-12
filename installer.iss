@@ -5,7 +5,7 @@
 ; de Windows profesional, con UI, desinstalador y componentes.
 ;
 ; Compilar:  ISCC.exe installer.iss
-; Requiere:  Inno Setup 6.2+  (https://jrsoftware.org/isdownload.php)
+; Requiere:  Inno Setup 6.3+  (https://jrsoftware.org/isdownload.php)
 ; =====================================================================
 
 #ifndef MyAppVersion
@@ -36,8 +36,8 @@
 ; Timestamp de compilación (formato: yyyy-MM-dd_HH-mm)
 #define MyTimestamp GetDateTimeString('yyyy-MM-dd_HH-mm', '-', '-')
 
-#define MyAppName      "Portal RD Web"
-#define MyAppPublisher "RDS Custom"
+#define MyAppName      "Portal RDS Web"
+#define MyAppPublisher "RDS-DINAFI-USC"
 #define ServiceName    "RDSWeb"
 
 ; =====================================================================
@@ -48,6 +48,11 @@ AppId={{8F3A5E92-C147-4D6B-B21A-3E92F6D5C8A1}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+VersionInfoVersion={#MyAppVersion}
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription=Instalador {#MyAppName}
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}
 DefaultDirName=C:\inetpub\wwwroot
 DirExistsWarning=no
 UsePreviousAppDir=yes
@@ -58,9 +63,9 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 PrivilegesRequired=admin
 WizardStyle=modern
-SetupIconFile={app}\assets\installer\app-icon.ico
-WizardImageFile={app}\assets\installer\wizard-banner.png
-WizardSmallImageFile={app}\assets\installer\wizard-logo.png
+SetupIconFile=assets\installer\app-icon.ico
+WizardImageFile=assets\installer\wizard-banner.png
+WizardSmallImageFile=assets\installer\wizard-logo.png
 UninstallDisplayIcon={app}\assets\installer\app-icon.ico
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
@@ -222,8 +227,12 @@ Source: "scripts\setup-iis-prereqs.ps1";    DestDir: "{tmp}"; Flags: ignoreversi
 Source: "scripts\setup-backend-service.ps1"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 Source: "scripts\setup-iis-site.ps1";        DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 
-; --- Script de desinstalación (persiste junto a la aplicación) ---
+; --- Icono para el desinstalador (persiste junto a la aplicación) ---
+Source: "assets\installer\app-icon.ico"; DestDir: "{app}\assets\installer"; Flags: ignoreversion
+
+; --- Scripts de desinstalación (persisten junto a la aplicación) ---
 Source: "scripts\uninstall-backend-service.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "scripts\uninstall-iis-site.ps1";        DestDir: "{app}\scripts"; Flags: ignoreversion
 
 ; =====================================================================
 ; DIRECTORIOS
@@ -235,6 +244,9 @@ Name: "{app}\backend\logs"; Components: backend; Permissions: users-full
 ; DESINSTALACIÓN
 ; =====================================================================
 [UninstallRun]
+Filename: "powershell.exe"; \
+  Parameters: "-ExecutionPolicy Bypass -NoProfile -File ""{app}\scripts\uninstall-iis-site.ps1"" -SiteName ""{#MyAppName}"""; \
+  Flags: runhidden waituntilterminated
 Filename: "powershell.exe"; \
   Parameters: "-ExecutionPolicy Bypass -NoProfile -File ""{app}\scripts\uninstall-backend-service.ps1"" -BackendDir ""{app}\backend"" -ServiceName ""{#ServiceName}"""; \
   Flags: runhidden waituntilterminated

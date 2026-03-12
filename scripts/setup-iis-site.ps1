@@ -81,9 +81,22 @@ try {
     Set-ItemProperty "IIS:\Sites\$SiteName" -Name "applicationPool" -Value $PoolName
     Write-Host "Application Pool '$PoolName' configurado (No Managed Code)."
 
-    # ── 8. Iniciar el sitio ──────────────────────────────────────────
-    Start-Website -Name $SiteName
-    Write-Host "Sitio '$SiteName' iniciado correctamente."
+    # ── 8. Iniciar el sitio (reintentar — IIS puede tardar en registrar el objeto) ─
+    $MaxRetries = 3
+    for ($i = 1; $i -le $MaxRetries; $i++) {
+        try {
+            Start-Sleep -Seconds 2
+            Start-Website -Name $SiteName
+            Write-Host "Sitio '$SiteName' iniciado correctamente."
+            break
+        }
+        catch {
+            Write-Host "Intento $i/$MaxRetries — esperando a que IIS registre el sitio..."
+            if ($i -eq $MaxRetries) {
+                Write-Host "ADVERTENCIA: No se pudo iniciar el sitio automaticamente. IIS lo iniciara al recibir la primera peticion."
+            }
+        }
+    }
 
     Write-Host ""
     Write-Host "=== Configuracion IIS completada ==="
