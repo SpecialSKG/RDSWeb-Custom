@@ -1,13 +1,13 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
-import { AuthService } from '../../core/services/auth.service';
+import { Component, inject, signal, OnInit } from "@angular/core";
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
+import { Router } from "@angular/router";
+import { AuthService } from "../../core/services/auth.service";
 
 @Component({
-  selector: 'app-fusion-login',
+  selector: "app-fusion-login",
   imports: [ReactiveFormsModule],
-  templateUrl: './fusion-login.html',
-  styleUrl: './fusion-login.scss',
+  templateUrl: "./fusion-login.html",
+  styleUrl: "./fusion-login.scss",
 })
 export class FusionLoginComponent implements OnInit {
   private readonly auth = inject(AuthService);
@@ -15,14 +15,14 @@ export class FusionLoginComponent implements OnInit {
   private readonly fb = inject(NonNullableFormBuilder);
 
   loginForm = this.fb.group({
-    username: ['', [Validators.required]],
-    password: ['', [Validators.required]],
+    username: ["", [Validators.required]],
+    password: ["", [Validators.required]],
   });
 
   showPreloader = signal(true);
   passwordVisible = signal(false);
   loading = signal(false);
-  errorMessage = signal('');
+  errorMessage = signal("");
 
   ngOnInit(): void {
     setTimeout(() => this.showPreloader.set(false), 700);
@@ -39,13 +39,15 @@ export class FusionLoginComponent implements OnInit {
     }
 
     this.loading.set(true);
-    this.errorMessage.set('');
+    this.errorMessage.set("");
 
     this.auth.login(this.loginForm.getRawValue()).subscribe({
-      next: () => this.router.navigate(['/fusion-apps']),
+      next: () => {
+        this.router.navigate(["/apps"]);
+      },
       error: (err) => {
         this.loading.set(false);
-        this.errorMessage.set(err?.error || 'Credenciales incorrectas');
+        this.errorMessage.set(err?.error || "Credenciales incorrectas");
       },
     });
   }

@@ -96,7 +96,7 @@ export class FusionAppsComponent implements OnInit {
 
   logout(): void {
     this.auth.logout().subscribe({
-      next: () => this.router.navigate(['/fusion-login']),
+      next: () => this.router.navigate(['/login']),
     });
   }
 
