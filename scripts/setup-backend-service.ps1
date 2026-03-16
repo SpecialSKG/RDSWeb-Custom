@@ -7,7 +7,10 @@ param(
     [Parameter(Mandatory)][string]$ServiceName,
     [Parameter(Mandatory)][string]$CredentialFile,
     [Parameter(Mandatory)][string]$LogFile,
-    [string]$BackendType = "express"
+    [string]$BackendType = "express",
+    [string]$ServiceUser = ''
+    ,
+    [string]$ServiceDomain = ''
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,7 +25,17 @@ try {
     Remove-Item $CredentialFile -Force -ErrorAction SilentlyContinue
 
     # ── Resolución de rutas ──────────────────────────────────────────
-    $ServiceUser = "$env:USERDOMAIN\$env:USERNAME"
+    # El instalador puede pasar la cuenta AD a usar para el servicio via -ServiceUser
+    # y además puede pasar el NetBIOS/DOMINIO via -ServiceDomain para garantizar
+    # que NSSM reciba la cuenta en formato NETBIOS\samAccountName.
+    $EffectiveServiceUser = if ($ServiceUser -and $ServiceUser -ne '') { $ServiceUser } else { "$env:USERDOMAIN\$env:USERNAME" }
+    $EffectiveServiceDomain = if ($ServiceDomain -and $ServiceDomain -ne '') { $ServiceDomain } else {
+        try {
+            ([System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()).NetBiosName
+        } catch {
+            $env:USERDOMAIN
+        }
+    }
     $NssmExe     = "$BackendDir\nssm.exe"
     $LogDir      = "$BackendDir\logs"
 
@@ -48,15 +61,18 @@ try {
     }
 
     # ── 1. Validar credenciales contra Active Directory ──────────────
-    Write-Host "Validando credenciales de $ServiceUser contra Active Directory..."
+    Write-Host "Validando credenciales de $EffectiveServiceUser contra Active Directory..."
     try {
         Add-Type -AssemblyName System.DirectoryServices.AccountManagement
         $ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext(
             [System.DirectoryServices.AccountManagement.ContextType]::Domain,
             $env:USERDNSDOMAIN
         )
-        if (-not $ctx.ValidateCredentials($env:USERNAME, $PlainPass)) {
-            throw "La contraseña proporcionada no es válida para $ServiceUser."
+        # Preparar el nombre de usuario para ValidateCredentials
+        $usernameToValidate = $EffectiveServiceUser
+        if ($usernameToValidate -match '\\') { $usernameToValidate = $usernameToValidate.Split('\\')[-1] }
+        if (-not $ctx.ValidateCredentials($usernameToValidate, $PlainPass)) {
+            throw "La contraseña proporcionada no es válida para $EffectiveServiceUser."
         }
         Write-Host "Credenciales verificadas correctamente."
     }
@@ -86,7 +102,43 @@ try {
         Invoke-Nssm @('set', $ServiceName, 'AppDirectory',       $BackendDir)
         Invoke-Nssm @('set', $ServiceName, 'AppEnvironmentExtra', 'NODE_ENV=production')
     }
-    Invoke-Nssm @('set', $ServiceName, 'ObjectName',         $ServiceUser, $PlainPass)
+    # Para NSSM necesitamos pasar el account en formato NETBIOS\samAccountName.
+    # Construimos $nssmServiceUser con las siguientes reglas:
+    # - Si ya viene con '\\' (DOMINIO\usuario), usamos tal cual.
+    # - Si viene en UPN (user@domain), resolvemos samAccountName y lo prefijamos con
+    #   el NetBIOS proporcionado por -ServiceDomain (o el detectado por el equipo).
+    # - Si viene solo el nombre (sin UPN ni dominio), lo prefijamos con ServiceDomain si está.
+    $nssmServiceUser = $EffectiveServiceUser
+    if ($nssmServiceUser -match '\\') {
+        # ya contiene dominio\usuario => nada que hacer
+    }
+    elseif ($nssmServiceUser -match '@') {
+        try {
+            Add-Type -AssemblyName System.DirectoryServices
+            $searcher = New-Object System.DirectoryServices.DirectorySearcher
+            $searcher.Filter = "(&(objectClass=user)(userPrincipalName=$nssmServiceUser))"
+            $res = $searcher.FindOne()
+            if ($res -ne $null) {
+                $sam = $res.Properties['samaccountname'][0]
+                if ($EffectiveServiceDomain -and $EffectiveServiceDomain -ne '') {
+                    $nssmServiceUser = "$EffectiveServiceDomain\$sam"
+                } else {
+                    $nssmServiceUser = $sam
+                }
+            }
+        } catch {
+            # si falla, dejamos el valor original (UPN) y NSSM lo reportará como error
+            $nssmServiceUser = $EffectiveServiceUser
+        }
+    }
+    else {
+        # nombre simple, prefijar con dominio si está disponible
+        if ($EffectiveServiceDomain -and $EffectiveServiceDomain -ne '') {
+            $nssmServiceUser = "$EffectiveServiceDomain\$nssmServiceUser"
+        }
+    }
+
+    Invoke-Nssm @('set', $ServiceName, 'ObjectName',         $nssmServiceUser, $PlainPass)
     Invoke-Nssm @('set', $ServiceName, 'DisplayName',        'Portal RDS Web')
     Invoke-Nssm @('set', $ServiceName, 'Description',        'Servicio backend (API REST) del Portal RDS Web. Gestiona autenticacion AD, publicacion de RemoteApps y generacion de archivos RDP.')
 

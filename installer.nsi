@@ -72,8 +72,6 @@ ShowUninstDetails show
 ; =====================================================================
 !insertmacro MUI_PAGE_WELCOME
 
-; 1. Custom: Credenciales
-Page custom PageCredentialsCreate PageCredentialsLeave
 ; 2. Custom: Active Directory
 Page custom PageADCreate PageADLeave
 ; 3. Custom: Certificados
@@ -96,65 +94,7 @@ Page custom PageCertCreate PageCertLeave
 !insertmacro MUI_LANGUAGE "English"
 
 
-; =====================================================================
-; LÓGICA: PÁGINA DE CREDENCIALES
-; =====================================================================
-Function PageCredentialsCreate
-    !insertmacro MUI_HEADER_TEXT "Credenciales del Servicio" "El servicio backend se ejecutará bajo la cuenta de dominio indicada abajo.$\r$\nIngrese la contraseña para configurar el servicio."
-    nsDialogs::Create 1018
-    Pop $Dialog
-    ${If} $Dialog == error
-        Abort
-    ${EndIf}
-
-    ReadEnvStr $0 "USERDOMAIN"
-    ReadEnvStr $1 "USERNAME"
-    StrCpy $2 "$0\$1"
-
-    ${NSD_CreateLabel} 0 10u 100% 12u "Cuenta de servicio: $2"
-    Pop $LblCredUser
-    ${NSD_CreateLabel} 0 30u 100% 12u "Contraseña:"
-    Pop $0
-    ${NSD_CreatePassword} 0 42u 100% 12u ""
-    Pop $TxtCredPass
-
-    nsDialogs::Show
-FunctionEnd
-
-Function PageCredentialsLeave
-    ${NSD_GetText} $TxtCredPass $ValCredPass
-    ${If} $ValCredPass == ""
-        MessageBox MB_ICONSTOP|MB_OK "Debe ingresar la contraseña de la cuenta de servicio."
-        Abort
-    ${EndIf}
-
-    InitPluginsDir 
-    FileOpen $0 "$PLUGINSDIR\svcpwd_validate.dat" w
-    FileWrite $0 $ValCredPass
-    FileClose $0
-
-    FileOpen $0 "$PLUGINSDIR\validate-creds.ps1" w
-    FileWrite $0 "try {$\r$\n"
-    FileWrite $0 "  $$pw = (Get-Content '$PLUGINSDIR\svcpwd_validate.dat' -Raw).Trim()$\r$\n"
-    FileWrite $0 "  Add-Type -AssemblyName System.DirectoryServices.AccountManagement$\r$\n"
-    FileWrite $0 "  $$c = [System.DirectoryServices.AccountManagement.PrincipalContext]::new([System.DirectoryServices.AccountManagement.ContextType]::Domain, $$env:USERDNSDOMAIN)$\r$\n"
-    FileWrite $0 "  if ($$c.ValidateCredentials($$env:USERNAME, $$pw)) { exit 0 } else { exit 1 }$\r$\n"
-    FileWrite $0 "} catch { exit 2 }$\r$\n"
-    FileClose $0
-
-    nsExec::Exec 'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "$PLUGINSDIR\validate-creds.ps1"'
-    Pop $0
-
-    Delete "$PLUGINSDIR\svcpwd_validate.dat"
-    Delete "$PLUGINSDIR\validate-creds.ps1"
-
-    ${If} $0 == 1
-        MessageBox MB_ICONSTOP|MB_OK "La contraseña ingresada no es válida para la cuenta de servicio.$\r$\n$\r$\nPor favor, verifique e intente de nuevo."
-        Abort
-    ${ElseIf} $0 == 2
-        MessageBox MB_ICONINFORMATION|MB_OK "No se pudo validar la contraseña contra el dominio.$\r$\nLa instalación continuará, pero si la contraseña es incorrecta el servicio no podrá iniciar."
-    ${EndIf}
-FunctionEnd
+; (Removed Credentials page — service will use AD account supplied in Active Directory page)
 
 
 ; =====================================================================
@@ -168,27 +108,66 @@ Function PageADCreate
         Abort
     ${EndIf}
 
-    InitPluginsDir
-    FileOpen $0 "$PLUGINSDIR\detect-ad.ps1" w
-    FileWrite $0 "$$d = $$env:USERDNSDOMAIN; if($$d) { $$base = ($$d -split '\.' | ForEach-Object { 'DC=' + $$_ }) -join ','; Write-Output $$base } else { Write-Output '' }$\r$\n"
-    FileClose $0
-    nsExec::ExecToStack 'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "$PLUGINSDIR\detect-ad.ps1"'
-    Pop $0
-    Pop $1
-    ${WordFind} "$1" "$\r$\n" "-1{" $1 
+        ${NSD_CreateLabel} 0 0u 100% 10u "URL LDAP del Domain Controller:"
+        Pop $0
+        ReadEnvStr $2 "LOGONSERVER"
+        ReadEnvStr $3 "USERDNSDOMAIN"
+        ${WordFind} "$2" "\" "-1" $2 
+        ${NSD_CreateText} 0 10u 100% 12u "ldap://$2.$3"
+        Pop $TxtAdLdap
 
-    ${NSD_CreateLabel} 0 0u 100% 10u "URL LDAP del Domain Controller:"
-    Pop $0
-    ReadEnvStr $2 "LOGONSERVER"
-    ReadEnvStr $3 "USERDNSDOMAIN"
-    ${WordFind} "$2" "\" "-1" $2 
-    ${NSD_CreateText} 0 10u 100% 12u "ldap://$2.$3"
-    Pop $TxtAdLdap
+        ; Calcular Base DN rápidamente a partir de USERDNSDOMAIN (sin PowerShell)
+        StrCmp $3 "" 0 +3
+            StrCpy $1 ""
+            Goto _after_dns_parse
 
-    ${NSD_CreateLabel} 0 25u 100% 10u "Base DN del dominio:"
-    Pop $0
-    ${NSD_CreateText} 0 35u 100% 12u "$1"
-    Pop $TxtAdBaseDn
+        ; variables temporales: $R0=dns, $R1=part, $R2=base, $R3=len, $R4=idx, $R5=char
+        StrCpy $R0 $3
+        StrCpy $R1 ""
+        StrCpy $R2 ""
+        StrLen $R3 $R0
+        StrCpy $R4 0
+
+        dns_loop:
+            StrCpy $R5 $R0 1 $R4
+            StrCmp $R5 "." dns_dot dns_char
+        dns_char:
+            StrCpy $R1 "$R1$R5"
+            IntOp $R4 $R4 + 1
+            IntCmp $R4 $R3 dns_loop dns_done
+            Goto dns_loop
+        dns_dot:
+            StrCmp $R2 "" dns_first dns_append
+        dns_first:
+            StrCpy $R2 "DC=$R1"
+            StrCpy $R1 ""
+            IntOp $R4 $R4 + 1
+            IntCmp $R4 $R3 dns_loop dns_done
+            Goto dns_loop
+        dns_append:
+            StrCpy $R2 "$R2,DC=$R1"
+            StrCpy $R1 ""
+            IntOp $R4 $R4 + 1
+            IntCmp $R4 $R3 dns_loop dns_done
+            Goto dns_loop
+        dns_done:
+            StrCmp $R1 "" dns_skip_append dns_do_append
+        dns_do_append:
+            StrCmp $R2 "" dns_first2 dns_append2
+        dns_first2:
+            StrCpy $R2 "DC=$R1"
+            Goto dns_skip_append
+        dns_append2:
+            StrCpy $R2 "$R2,DC=$R1"
+        dns_skip_append:
+            StrCpy $1 $R2
+
+        _after_dns_parse:
+
+        ${NSD_CreateLabel} 0 25u 100% 10u "Base DN del dominio:"
+        Pop $0
+        ${NSD_CreateText} 0 35u 100% 12u "$1"
+        Pop $TxtAdBaseDn
 
     ${NSD_CreateLabel} 0 50u 100% 10u "Dominio NetBIOS:"
     Pop $0
@@ -269,8 +248,11 @@ Function PageCertCreate
 
     InitPluginsDir
     FileOpen $0 "$PLUGINSDIR\enum-certs.ps1" w
-    FileWrite $0 "$$certs = Get-ChildItem Cert:\LocalMachine\My | Where-Object { $$_.HasPrivateKey -and $$_.NotAfter -gt (Get-Date) } | ForEach-Object { $$_.Subject + ' (exp: ' + $$_.NotAfter.ToString('yyyy-MM-dd') + ')' }$\r$\n"
-    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\\certs_list.txt', $$certs, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
+    FileWrite $0 "$$certs = Get-ChildItem Cert:\\LocalMachine\\My | Where-Object { $$_.HasPrivateKey -and $$_.NotAfter -gt (Get-Date) }$\r$\n"
+    FileWrite $0 "$$certs_display = $$certs | ForEach-Object { $$_.Subject + ' (exp: ' + $$_.NotAfter.ToString('yyyy-MM-dd') + ')' }$\r$\n"
+    FileWrite $0 "$$certs_thumb = $$certs | ForEach-Object { $$_.Thumbprint }$\r$\n"
+    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\\certs_list.txt', $$certs_display, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
+    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\\certs_thumb.txt', $$certs_thumb, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
     FileClose $0
 
     nsExec::Exec 'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "$PLUGINSDIR\enum-certs.ps1"'
@@ -305,16 +287,35 @@ Function PageCertLeave
         MessageBox MB_ICONSTOP|MB_OK "Debe ingresar el nombre de host del sitio (ej: portal.midominio.com)."
         Abort
     ${EndIf}
-
-    ${NSD_GetText} $CmbCert $0
-    ${If} $0 == ""
-    ${OrIf} $0 == "No se encontraron certificados válidos."
+    ; Get selected index from combo and map to thumbprint file
+    SendMessage $CmbCert ${CB_GETCURSEL} 0 0
+    Pop $0
+    ${If} $0 == -1
         MessageBox MB_ICONSTOP|MB_OK "Debe seleccionar un certificado SSL válido para continuar."
         Abort
     ${EndIf}
 
-    ${WordFind} "$0" "[" "+2" $ValCertThumbprint
-    ${WordFind} "$ValCertThumbprint" "]" "+1" $ValCertThumbprint
+    ; Read the thumbprints file and pick the line at index $0
+    FileOpen $1 "$PLUGINSDIR\certs_thumb.txt" r
+    ${If} $1 == ""
+        MessageBox MB_ICONSTOP|MB_OK "No se pudo cargar la información de certificados (thumbprints)."
+        Abort
+    ${EndIf}
+    StrCpy $2 0
+    loop_read_thumbs:
+        FileRead $1 $3
+        IfErrors done_read_thumbs
+        StrLen $4 $3
+        IntOp $4 $4 - 2
+        StrCpy $3 $3 $4
+        ${If} $2 == $0
+            StrCpy $ValCertThumbprint $3
+            Goto done_read_thumbs
+        ${EndIf}
+        IntOp $2 $2 + 1
+        Goto loop_read_thumbs
+    done_read_thumbs:
+    FileClose $1
 FunctionEnd
 
 
@@ -405,10 +406,10 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
     CreateDirectory "$INSTDIR\backend\logs"
     
     FileOpen $0 "$TEMP\svcpwd.dat" w
-    FileWrite $0 $ValCredPass
+    FileWrite $0 $ValAdPass
     FileClose $0
 
-    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "$TEMP\setup-backend-service.ps1" -BackendDir "$INSTDIR\backend" -ServiceName "${ServiceName}" -BackendType "${BackendType}" -CredentialFile "$TEMP\svcpwd.dat" -LogFile "$INSTDIR\backend\logs\install-service.log"'
+    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "$TEMP\setup-backend-service.ps1" -BackendDir "$INSTDIR\backend" -ServiceName "${ServiceName}" -BackendType "${BackendType}" -ServiceUser "$ValAdUser" -ServiceDomain "$ValAdDomain" -CredentialFile "$TEMP\svcpwd.dat" -LogFile "$INSTDIR\backend\logs\install-service.log"'
     Pop $0
     ${If} $0 != 0
         MessageBox MB_ICONSTOP|MB_OK "Ocurrieron errores al configurar el servicio backend.$\r$\nRevise el log en: $INSTDIR\backend\logs\install-service.log"
