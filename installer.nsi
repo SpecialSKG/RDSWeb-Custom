@@ -1,5 +1,5 @@
 ﻿; =====================================================================
-; Instalador NSIS - Portal RD Web (Versión Final Completa)
+; Instalador NSIS - Portal RD Web (Refactorizado)
 ; =====================================================================
 
 !include "MUI2.nsh"
@@ -13,29 +13,50 @@
 !define MyAppPublisher "MH-DINAFI-USC"
 !define ServiceName "RDSWeb"
 
-; Validamos si la versión viene inyectada desde build.ps1
 !ifndef MyAppVersion
   !define MyAppVersion "1.0.0"
 !endif
 
-; Validamos si el backend viene inyectado desde build.ps1
 !ifndef BackendType
   !define BackendType "express"
 !endif
 
 ; =====================================================================
+; MACROS REUTILIZABLES
+; =====================================================================
+; Ejecución centralizada y segura de PowerShell con manejo de errores
+!macro ExecPowerShell ScriptPath Arguments
+    Push $R0 ; Protegemos el valor original de $R0
+    DetailPrint "Ejecutando: ${ScriptPath}..."
+    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "${ScriptPath}" ${Arguments}'
+    Pop $R0  ; Obtenemos el Exit Code de PowerShell
+    ${If} $R0 != 0
+        MessageBox MB_ICONSTOP|MB_OK "Fallo crítico al ejecutar: ${ScriptPath}$\r$\nCódigo de error: $R0.$\r$\nRevise los logs en la carpeta destino para más detalles."
+        Abort "Instalación abortada por fallo en script externo."
+    ${EndIf}
+    Pop $R0  ; Restauramos el valor original de $R0
+!macroend
+
+; Ejecución silenciosa para procesos de desinstalación (no detiene el proceso si falla)
+!macro ExecPowerShellQuiet ScriptPath Arguments
+    Push $R0
+    DetailPrint "Desinstalando (Ejecutando script): ${ScriptPath}..."
+    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "${ScriptPath}" ${Arguments}'
+    Pop $R0  ; Descartamos el Exit Code
+    Pop $R0  ; Restauramos la pila
+!macroend
+
+; =====================================================================
 ; VARIABLES GLOBALES
 ; =====================================================================
 Var Dialog
-; -- Credenciales --
-Var LblCredUser
-Var TxtCredPass
-Var ValCredPass
+
 ; -- Certificados --
 Var CmbCert
 Var TxtHost
 Var ValHost
 Var ValCertThumbprint
+
 ; -- Active Directory y Servidores --
 Var TxtAdLdap
 Var TxtAdBaseDn
@@ -43,6 +64,7 @@ Var TxtAdDomain
 Var TxtAdUser
 Var TxtAdPass
 Var TxtSrvRdcb
+
 Var ValAdLdap
 Var ValAdBaseDn
 Var ValAdDomain
@@ -51,7 +73,7 @@ Var ValAdPass
 Var ValSrvRdcb
 
 ; =====================================================================
-; CONFIGURACIÓN DEL INSTALADOR
+; CONFIGURACIÓN DEL INSTALADOR Y UI
 ; =====================================================================
 Name "${MyAppName}"
 !ifndef OutFileExe
@@ -66,36 +88,25 @@ ShowUninstDetails show
 !define MUI_ICON "assets\installer\app-icon.ico"
 !define MUI_UNICON "assets\installer\app-icon.ico"
 !define MUI_WELCOMEFINISHPAGE_BITMAP "assets\installer\wizard-banner.bmp"
-
-; =====================================================================
-; ORDEN DE LAS PÁGINAS DEL ASISTENTE
-; =====================================================================
-!insertmacro MUI_PAGE_WELCOME
-
-; 2. Custom: Active Directory
-Page custom PageADCreate PageADLeave
-; 3. Custom: Certificados
-Page custom PageCertCreate PageCertLeave
-
-; Use components page without description box (more width for component names)
 !define MUI_COMPONENTSPAGE_NODESC
 
+; -- Orden de Páginas --
+!insertmacro MUI_PAGE_WELCOME
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW PageADShow
+Page custom PageADCreate PageADLeave
+Page custom PageCertCreate PageCertLeave
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
-; Páginas de Desinstalación
+; -- Páginas de Desinstalación --
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
-; Idioma
+; -- Idiomas --
 !insertmacro MUI_LANGUAGE "Spanish"
 !insertmacro MUI_LANGUAGE "English"
-
-
-; (Removed Credentials page — service will use AD account supplied in Active Directory page)
-
 
 ; =====================================================================
 ; LÓGICA: PÁGINA DE ACTIVE DIRECTORY
@@ -108,71 +119,21 @@ Function PageADCreate
         Abort
     ${EndIf}
 
-        ${NSD_CreateLabel} 0 0u 100% 10u "URL LDAP del Domain Controller:"
-        Pop $0
-        ReadEnvStr $2 "LOGONSERVER"
-        ReadEnvStr $3 "USERDNSDOMAIN"
-        ${WordFind} "$2" "\" "-1" $2 
-        ${NSD_CreateText} 0 10u 100% 12u "ldap://$2.$3"
-        Pop $TxtAdLdap
+    ; --- LDAP URL ---
+    ${NSD_CreateLabel} 0 0u 100% 10u "URL LDAP del Domain Controller:"
+    Pop $0
+    ${NSD_CreateText} 0 10u 100% 12u ""
+    Pop $TxtAdLdap
 
-        ; Calcular Base DN rápidamente a partir de USERDNSDOMAIN (sin PowerShell)
-        StrCmp $3 "" 0 +3
-            StrCpy $1 ""
-            Goto _after_dns_parse
+    ${NSD_CreateLabel} 0 25u 100% 10u "Base DN del dominio:"
+    Pop $0
+    ${NSD_CreateText} 0 35u 100% 12u ""
+    Pop $TxtAdBaseDn
 
-        ; variables temporales: $R0=dns, $R1=part, $R2=base, $R3=len, $R4=idx, $R5=char
-        StrCpy $R0 $3
-        StrCpy $R1 ""
-        StrCpy $R2 ""
-        StrLen $R3 $R0
-        StrCpy $R4 0
-
-        dns_loop:
-            StrCpy $R5 $R0 1 $R4
-            StrCmp $R5 "." dns_dot dns_char
-        dns_char:
-            StrCpy $R1 "$R1$R5"
-            IntOp $R4 $R4 + 1
-            IntCmp $R4 $R3 dns_loop dns_done
-            Goto dns_loop
-        dns_dot:
-            StrCmp $R2 "" dns_first dns_append
-        dns_first:
-            StrCpy $R2 "DC=$R1"
-            StrCpy $R1 ""
-            IntOp $R4 $R4 + 1
-            IntCmp $R4 $R3 dns_loop dns_done
-            Goto dns_loop
-        dns_append:
-            StrCpy $R2 "$R2,DC=$R1"
-            StrCpy $R1 ""
-            IntOp $R4 $R4 + 1
-            IntCmp $R4 $R3 dns_loop dns_done
-            Goto dns_loop
-        dns_done:
-            StrCmp $R1 "" dns_skip_append dns_do_append
-        dns_do_append:
-            StrCmp $R2 "" dns_first2 dns_append2
-        dns_first2:
-            StrCpy $R2 "DC=$R1"
-            Goto dns_skip_append
-        dns_append2:
-            StrCpy $R2 "$R2,DC=$R1"
-        dns_skip_append:
-            StrCpy $1 $R2
-
-        _after_dns_parse:
-
-        ${NSD_CreateLabel} 0 25u 100% 10u "Base DN del dominio:"
-        Pop $0
-        ${NSD_CreateText} 0 35u 100% 12u "$1"
-        Pop $TxtAdBaseDn
-
+    ; --- Dominio y Credenciales ---
     ${NSD_CreateLabel} 0 50u 100% 10u "Dominio NetBIOS:"
     Pop $0
-    ReadEnvStr $4 "USERDOMAIN"
-    ${NSD_CreateText} 0 60u 100% 12u "$4"
+    ${NSD_CreateText} 0 60u 100% 12u ""
     Pop $TxtAdDomain
 
     ${NSD_CreateLabel} 0 75u 48% 10u "Cuenta servicio (UPN):"
@@ -191,6 +152,63 @@ Function PageADCreate
     Pop $TxtSrvRdcb
 
     nsDialogs::Show
+FunctionEnd
+
+; =====================================================================
+; CALLBACK: Mostrar / inicializar valores rápidos al mostrar la página AD
+; =====================================================================
+Function PageADShow
+    ; Rellenar valores por defecto (rápidos) al mostrar la página
+    ReadEnvStr $2 "LOGONSERVER"
+    ReadEnvStr $3 "USERDNSDOMAIN"
+    ${WordFind} "$2" "\" "-1" $2
+
+    ; Calcular Base DN (si existe USERDNSDOMAIN)
+    ${If} $3 == ""
+        StrCpy $1 ""
+    ${Else}
+        Push $R0
+        Push $R1
+        Push $R2
+        Push $R3
+        Push $R4
+        Push $R5
+
+        StrCpy $R0 $3
+        StrCpy $R1 ""
+        StrCpy $R2 ""
+        StrLen $R3 $R0
+        
+        ${For} $R4 0 $R3
+            StrCpy $R5 $R0 1 $R4
+            ${If} $R5 == "."
+            ${OrIf} $R4 == $R3
+                ${If} $R1 != ""
+                    ${If} $R2 == ""
+                        StrCpy $R2 "DC=$R1"
+                    ${Else}
+                        StrCpy $R2 "$R2,DC=$R1"
+                    ${EndIf}
+                    StrCpy $R1 ""
+                ${EndIf}
+            ${Else}
+                StrCpy $R1 "$R1$R5"
+            ${EndIf}
+        ${Next}
+        StrCpy $1 $R2
+
+        Pop $R5
+        Pop $R4
+        Pop $R3
+        Pop $R2
+        Pop $R1
+        Pop $R0
+    ${EndIf}
+
+    ${NSD_SetText} $TxtAdLdap "ldap://$2.$3"
+    ${NSD_SetText} $TxtAdBaseDn "$1"
+    ReadEnvStr $4 "USERDOMAIN"
+    ${NSD_SetText} $TxtAdDomain "$4"
 FunctionEnd
 
 Function PageADLeave
@@ -216,12 +234,11 @@ Function PageADLeave
     ${EndIf}
 FunctionEnd
 
-
 ; =====================================================================
 ; LÓGICA: PÁGINA DE CERTIFICADO SSL
 ; =====================================================================
 Function PageCertCreate
-    !insertmacro MUI_HEADER_TEXT "Certificado SSL" "Seleccione el certificado SSL que se usará para el sitio HTTPS del portal.$\r$\nSolo se muestran certificados válidos con clave privada."
+    !insertmacro MUI_HEADER_TEXT "Certificado SSL" "Seleccione el certificado SSL que se usará para el sitio HTTPS del portal."
     nsDialogs::Create 1018
     Pop $Dialog
     ${If} $Dialog == error
@@ -246,31 +263,36 @@ Function PageCertCreate
     ${NSD_CreateText} 0 65u 100% 12u "$2"
     Pop $TxtHost
 
+    ; Extraer y listar certificados vía PowerShell
     InitPluginsDir
     FileOpen $0 "$PLUGINSDIR\enum-certs.ps1" w
-    FileWrite $0 "$$certs = Get-ChildItem Cert:\\LocalMachine\\My | Where-Object { $$_.HasPrivateKey -and $$_.NotAfter -gt (Get-Date) }$\r$\n"
+    FileWrite $0 "$$certs = Get-ChildItem Cert:\LocalMachine\My | Where-Object { $$_.HasPrivateKey -and $$_.NotAfter -gt (Get-Date) }$\r$\n"
     FileWrite $0 "$$certs_display = $$certs | ForEach-Object { $$_.Subject + ' (exp: ' + $$_.NotAfter.ToString('yyyy-MM-dd') + ')' }$\r$\n"
     FileWrite $0 "$$certs_thumb = $$certs | ForEach-Object { $$_.Thumbprint }$\r$\n"
-    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\\certs_list.txt', $$certs_display, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
-    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\\certs_thumb.txt', $$certs_thumb, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
+    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\certs_list.txt', $$certs_display, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
+    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\certs_thumb.txt', $$certs_thumb, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
     FileClose $0
 
     nsExec::Exec 'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "$PLUGINSDIR\enum-certs.ps1"'
 
+    ; Cargar certificados en el ComboBox (Refactorizado con LogicLib)
     ClearErrors
     FileOpen $0 "$PLUGINSDIR\certs_list.txt" r
     ${If} $0 != ""
-        loop_read_certs:
+        ${Do}
             FileRead $0 $1
-            IfErrors done_read_certs
+            IfErrors 0 +2
+                ${ExitDo}
+            
+            ; Limpiar CRLF
             StrLen $2 $1
             IntOp $2 $2 - 2
             StrCpy $1 $1 $2
+            
             ${If} $1 != ""
                 ${NSD_CB_AddString} $CmbCert $1
             ${EndIf}
-            Goto loop_read_certs
-        done_read_certs:
+        ${Loop}
         FileClose $0
         SendMessage $CmbCert ${CB_SETCURSEL} 0 0
     ${Else}
@@ -287,7 +309,7 @@ Function PageCertLeave
         MessageBox MB_ICONSTOP|MB_OK "Debe ingresar el nombre de host del sitio (ej: portal.midominio.com)."
         Abort
     ${EndIf}
-    ; Get selected index from combo and map to thumbprint file
+
     SendMessage $CmbCert ${CB_GETCURSEL} 0 0
     Pop $0
     ${If} $0 == -1
@@ -295,65 +317,56 @@ Function PageCertLeave
         Abort
     ${EndIf}
 
-    ; Read the thumbprints file and pick the line at index $0
     FileOpen $1 "$PLUGINSDIR\certs_thumb.txt" r
     ${If} $1 == ""
         MessageBox MB_ICONSTOP|MB_OK "No se pudo cargar la información de certificados (thumbprints)."
         Abort
     ${EndIf}
+    
+    ; Leer el thumbprint correspondiente a la selección
     StrCpy $2 0
-    loop_read_thumbs:
+    ${Do}
         FileRead $1 $3
-        IfErrors done_read_thumbs
+        IfErrors 0 +2
+            ${ExitDo}
+        
         StrLen $4 $3
         IntOp $4 $4 - 2
         StrCpy $3 $3 $4
+        
         ${If} $2 == $0
             StrCpy $ValCertThumbprint $3
-            Goto done_read_thumbs
+            ${ExitDo}
         ${EndIf}
         IntOp $2 $2 + 1
-        Goto loop_read_thumbs
-    done_read_thumbs:
+    ${Loop}
     FileClose $1
 FunctionEnd
 
-
 ; =====================================================================
-; COMPONENTES / SECCIONES
+; COMPONENTES / SECCIONES PRINCIPALES
 ; =====================================================================
 
 Section "Prerrequisitos IIS (URL Rewrite 2.1 y ARR 3.0)" SEC_PREREQS
-    ; 1. Extraer scripts de instalacion a carpeta temporal
     SetOutPath "$TEMP"
     File "scripts\setup-iis-prereqs.ps1"
     File "scripts\setup-backend-service.ps1"
     File "scripts\setup-iis-site.ps1"
 
-    ; 2. Extraer prerrequisitos (MSIs) a carpeta temporal
     SetOutPath "$TEMP\prereqs"
     File /r "prereqs\*"
 
-    ; 3. Ejecutar script de prerrequisitos
     CreateDirectory "$INSTDIR\backend\logs"
-    DetailPrint "Instalando prerrequisitos de IIS..."
-    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "$TEMP\setup-iis-prereqs.ps1" -PrereqsDir "$TEMP\prereqs" -LogFile "$INSTDIR\backend\logs\install-prereqs.log"'
-    Pop $0
-    ${If} $0 != 0
-        MessageBox MB_ICONSTOP|MB_OK "Ocurrieron errores al instalar prerrequisitos de IIS.$\r$\nRevise el log en: $INSTDIR\backend\logs\install-prereqs.log"
-    ${EndIf}
+    !insertmacro ExecPowerShell "$TEMP\setup-iis-prereqs.ps1" '-PrereqsDir "$TEMP\prereqs" -LogFile "$INSTDIR\backend\logs\install-prereqs.log"'
 SectionEnd
 
 
 Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
-    ; Detener servicio y procesos previos para evitar bloqueo de archivos
     DetailPrint "Deteniendo servicio/procesos existentes (si aplica)..."
-    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Service -Name \"${ServiceName}\" -ErrorAction SilentlyContinue) { Stop-Service -Name \"${ServiceName}\" -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3 }"'
-    Pop $0
-    nsExec::ExecToLog 'taskkill /F /IM main.exe 2>NUL'
-    Pop $0
-    nsExec::ExecToLog 'taskkill /F /IM node.exe 2>NUL'
-    Pop $0
+    nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Service -Name \"${ServiceName}\" -ErrorAction SilentlyContinue) { Stop-Service -Name \"${ServiceName}\" -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3 }"'
+    nsExec::Exec 'taskkill /F /IM main.exe 2>NUL'
+    nsExec::Exec 'taskkill /F /IM node.exe 2>NUL'
+
     !if "${BackendType}" == "python"
         SetOutPath "$INSTDIR\backend"
         File "backend\main.exe"
@@ -369,7 +382,7 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
         File "backend\node.exe"
     !endif
 
-    ; --- GENERAR EL ARCHIVO .ENV ---
+    ; --- Generar JWT Secreto VBS ---
     DetailPrint "Generando archivo .env..."
     InitPluginsDir
     FileOpen $0 "$PLUGINSDIR\gen-jwt.vbs" w
@@ -377,31 +390,22 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
     FileClose $0
     nsExec::ExecToStack 'cscript.exe //nologo "$PLUGINSDIR\gen-jwt.vbs"'
     Pop $0
-    Pop $1
+    Pop $1 ; JWT_SECRET en $1
 
+    ; --- Escritura de Configuración (.env) ---
     FileOpen $0 "$INSTDIR\backend\.env" w
     FileWrite $0 "# ============================================================$\r$\n"
-    FileWrite $0 "#  RDWeb Portal - Generado por el Instalador$\r$\n"
+    FileWrite $0 "# RDWeb Portal - Generado por el Instalador$\r$\n"
     FileWrite $0 "# ============================================================$\r$\n$\r$\n"
-    FileWrite $0 "PORT=3000$\r$\n"
-    FileWrite $0 "NODE_ENV=production$\r$\n$\r$\n"
-    FileWrite $0 "JWT_SECRET=$1$\r$\n"
-    FileWrite $0 "JWT_EXPIRES_IN=1h$\r$\n$\r$\n"
-    FileWrite $0 "LDAP_URL=$ValAdLdap$\r$\n"
-    FileWrite $0 "LDAP_BASE_DN=$ValAdBaseDn$\r$\n"
-    FileWrite $0 "AD_DOMAIN=$ValAdDomain$\r$\n"
-    FileWrite $0 "AD_SERVICE_USER=$ValAdUser$\r$\n"
-    FileWrite $0 "AD_SERVICE_PASS=$ValAdPass$\r$\n$\r$\n"
-    FileWrite $0 "RDCB_SERVER=$ValSrvRdcb$\r$\n$\r$\n"
-    FileWrite $0 "RDP_GATEWAY_CREDENTIAL_SOURCE=0$\r$\n"
-    FileWrite $0 "RDP_PROMPT_CREDENTIAL_ONCE=true$\r$\n"
-    FileWrite $0 "RDP_PROMPT_FOR_CREDENTIALS_ON_CLIENT=true$\r$\n"
-    FileWrite $0 "RDP_USE_MULTIMON=false$\r$\n"
-    FileWrite $0 "RDP_SPAN_MONITORS=false$\r$\n$\r$\n"
-    FileWrite $0 "SIMULATION_MODE=false$\r$\n"
+    FileWrite $0 "PORT=3000$\r$\nNODE_ENV=production$\r$\nJWT_SECRET=$1$\r$\nJWT_EXPIRES_IN=1h$\r$\n$\r$\n"
+    FileWrite $0 "LDAP_URL=$ValAdLdap$\r$\nLDAP_BASE_DN=$ValAdBaseDn$\r$\nAD_DOMAIN=$ValAdDomain$\r$\n"
+    FileWrite $0 "AD_SERVICE_USER=$ValAdUser$\r$\nAD_SERVICE_PASS=$ValAdPass$\r$\nRDCB_SERVER=$ValSrvRdcb$\r$\n$\r$\n"
+    FileWrite $0 "RDP_GATEWAY_CREDENTIAL_SOURCE=0$\r$\nRDP_PROMPT_CREDENTIAL_ONCE=true$\r$\n"
+    FileWrite $0 "RDP_PROMPT_FOR_CREDENTIALS_ON_CLIENT=true$\r$\nRDP_USE_MULTIMON=false$\r$\n"
+    FileWrite $0 "RDP_SPAN_MONITORS=false$\r$\nSIMULATION_MODE=false$\r$\n"
     FileClose $0
 
-    ; --- CONFIGURAR EL SERVICIO NSSM ---
+    ; --- Configurar Servicio NSSM ---
     DetailPrint "Configurando servicio backend..."
     CreateDirectory "$INSTDIR\backend\logs"
     
@@ -409,34 +413,19 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
     FileWrite $0 $ValAdPass
     FileClose $0
 
-    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "$TEMP\setup-backend-service.ps1" -BackendDir "$INSTDIR\backend" -ServiceName "${ServiceName}" -BackendType "${BackendType}" -ServiceUser "$ValAdUser" -ServiceDomain "$ValAdDomain" -CredentialFile "$TEMP\svcpwd.dat" -LogFile "$INSTDIR\backend\logs\install-service.log"'
-    Pop $0
-    ${If} $0 != 0
-        MessageBox MB_ICONSTOP|MB_OK "Ocurrieron errores al configurar el servicio backend.$\r$\nRevise el log en: $INSTDIR\backend\logs\install-service.log"
-    ${EndIf}
-
+    !insertmacro ExecPowerShell "$TEMP\setup-backend-service.ps1" '-BackendDir "$INSTDIR\backend" -ServiceName "${ServiceName}" -BackendType "${BackendType}" -ServiceUser "$ValAdUser" -ServiceDomain "$ValAdDomain" -CredentialFile "$TEMP\svcpwd.dat" -LogFile "$INSTDIR\backend\logs\install-service.log"'
     Delete "$TEMP\svcpwd.dat"
 SectionEnd
-
 
 Section "Frontend Angular (archivos estáticos IIS)" SEC_FRONTEND
     SetOutPath "$INSTDIR\frontend"
     File /r "frontend\*"
 
     DetailPrint "Configurando sitio IIS..."
-    CreateDirectory "$INSTDIR\backend\logs"
+    !insertmacro ExecPowerShell "$TEMP\setup-iis-site.ps1" '-SiteName "${MyAppName}" -FrontendDir "$INSTDIR\frontend" -CertThumbprint "$ValCertThumbprint" -HostName "$ValHost" -LogFile "$INSTDIR\backend\logs\install-iis-site.log"'
 
-    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "$TEMP\setup-iis-site.ps1" -SiteName "${MyAppName}" -FrontendDir "$INSTDIR\frontend" -CertThumbprint "$ValCertThumbprint" -HostName "$ValHost" -LogFile "$INSTDIR\backend\logs\install-iis-site.log"'
-    Pop $0
-    ${If} $0 != 0
-        MessageBox MB_ICONSTOP|MB_OK "Ocurrieron errores al configurar el sitio IIS.$\r$\nRevise el log en: $INSTDIR\backend\logs\install-iis-site.log"
-    ${EndIf}
-
-    ; --- Icono para desinstalador ---
     SetOutPath "$INSTDIR\assets\installer"
     File "assets\installer\app-icon.ico"
-
-    ; --- Scripts de desinstalación (persisten) ---
     SetOutPath "$INSTDIR\scripts"
     File "scripts\uninstall-backend-service.ps1"
     File "scripts\uninstall-iis-site.ps1"
@@ -459,11 +448,8 @@ SectionEnd
 ; DESINSTALADOR
 ; =====================================================================
 Section "Uninstall"
-    DetailPrint "Deteniendo y eliminando sitio IIS..."
-    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "$INSTDIR\scripts\uninstall-iis-site.ps1" -SiteName "${MyAppName}"'
-    
-    DetailPrint "Deteniendo y eliminando servicio Backend..."
-    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "$INSTDIR\scripts\uninstall-backend-service.ps1" -BackendDir "$INSTDIR\backend" -ServiceName "${ServiceName}"'
+    !insertmacro ExecPowerShellQuiet "$INSTDIR\scripts\uninstall-iis-site.ps1" '-SiteName "${MyAppName}"'
+    !insertmacro ExecPowerShellQuiet "$INSTDIR\scripts\uninstall-backend-service.ps1" '-BackendDir "$INSTDIR\backend" -ServiceName "${ServiceName}"'
 
     DetailPrint "Eliminando archivos..."
     RMDir /r "$INSTDIR\backend"

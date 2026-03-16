@@ -1,170 +1,211 @@
-﻿# =====================================================================
-# Configuración del Sitio IIS — Portal RD Web
-# Llamado por el instalador de Inno Setup — NO ejecutar manualmente
-# =====================================================================
+﻿<#
+.SYNOPSIS
+    Configura el Sitio IIS, Bindings y Application Pool para el Portal RDS Web.
+
+.DESCRIPTION
+    Este script automatiza la provisión de un sitio web en IIS. Se encarga de limpiar 
+    instalaciones previas, resolver conflictos de puertos (ej. Default Web Site), 
+    asignar certificados SSL, configurar el Application Pool sin código administrado 
+    (ideal para frontends SPA) y establecer los bindings HTTP/HTTPS.
+
+.PARAMETER SiteName
+    Nombre del sitio web y base para el nombre del Application Pool.
+
+.PARAMETER FrontendDir
+    Ruta física donde residen los archivos estáticos del frontend.
+
+.PARAMETER CertThumbprint
+    Huella digital (Thumbprint) del certificado SSL preinstalado en LocalMachine\My.
+
+.PARAMETER LogFile
+    Ruta absoluta para el archivo de log (Transcript).
+
+.PARAMETER HostName
+    (Opcional) Host header / FQDN del sitio. Ej: portal.midominio.com.
+
+.PARAMETER HttpsPort
+    (Opcional) Puerto para el tráfico HTTPS. Por defecto: 443.
+
+.PARAMETER BackendPort
+    (Opcional) Puerto donde escucha el backend (solo para documentación/logs). Por defecto: 3000.
+#>
+
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$SiteName,
-    [Parameter(Mandatory)][string]$FrontendDir,
-    [Parameter(Mandatory)][string]$CertThumbprint,
-    [Parameter(Mandatory)][string]$LogFile,
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
+    [string]$SiteName,
+
+    [Parameter(Mandatory = $true)]
+    [ValidateScript({ Test-Path $_ -PathType Container })]
+    [string]$FrontendDir,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[a-fA-F0-9]{40}$')]
+    [string]$CertThumbprint,
+
+    [Parameter(Mandatory = $true)]
+    [string]$LogFile,
+
     [string]$HostName = '',
-    [int]$HttpsPort  = 443,
+    
+    [ValidateRange(1, 65535)]
+    [int]$HttpsPort = 443,
+    
+    [ValidateRange(1, 65535)]
     [int]$BackendPort = 3000
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
+$WarningPreference = 'Continue'
+$InformationPreference = 'Continue'
 
-# ── Asegurar que el directorio del log existe ────────────────────────
-$LogDir = Split-Path -Parent $LogFile
-if ($LogDir -and -not (Test-Path $LogDir)) {
-    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
-}
+# =====================================================================
+# Funciones Auxiliares
+# =====================================================================
 
-# ── Iniciar transcript (con fallback) ────────────────────────────────
-$TranscriptStarted = $false
-try {
-    Start-Transcript -Path $LogFile -Force
-    $TranscriptStarted = $true
-} catch {
-    "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Error al iniciar transcript: $($_.Exception.Message)" |
-        Out-File $LogFile -Force -ErrorAction SilentlyContinue
-}
+function Wait-IisSiteStart {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [int]$MaxRetries = 3,
+        [int]$DelaySeconds = 2
+    )
 
-# ── Diagnóstico de parámetros recibidos ──────────────────────────────
-Write-Host "=== Configuracion Sitio IIS - Diagnostico ==="
-Write-Host "  PowerShell:     $($PSVersionTable.PSVersion)"
-Write-Host "  64-bit:         $([Environment]::Is64BitProcess)"
-Write-Host "  SiteName:       $SiteName"
-Write-Host "  FrontendDir:    $FrontendDir"
-Write-Host "  CertThumbprint: $CertThumbprint"
-Write-Host "  LogFile:        $LogFile"
-Write-Host "  HostName:       $HostName"
-Write-Host "  HttpsPort:      $HttpsPort"
-Write-Host "  BackendPort:    $BackendPort"
-Write-Host ""
-
-try {
-    Import-Module WebAdministration -ErrorAction Stop
-
-    # ── 1. Detener y eliminar sitio anterior si existe ───────────────
-    if (Get-Website -Name $SiteName -ErrorAction SilentlyContinue) {
-        Write-Host "Deteniendo sitio IIS existente '$SiteName'..."
-        Stop-Website -Name $SiteName -ErrorAction SilentlyContinue
-        Write-Host "Eliminando sitio IIS existente '$SiteName'..."
-        Remove-Website -Name $SiteName
-        Start-Sleep -Seconds 1
-    }
-
-    # ── 2. Detener Default Web Site si ocupa el puerto ───────────────
-    $DefaultSite = Get-Website -Name "Default Web Site" -ErrorAction SilentlyContinue
-    if ($DefaultSite -and $DefaultSite.State -eq 'Started') {
-        $Bindings = Get-WebBinding -Name "Default Web Site" -ErrorAction SilentlyContinue
-        $Conflict = $Bindings | Where-Object { $_.bindingInformation -match ":${HttpsPort}:" }
-        if ($Conflict) {
-            Write-Host "Deteniendo 'Default Web Site' (conflicto en puerto $HttpsPort)..."
-            Stop-Website -Name "Default Web Site" -ErrorAction SilentlyContinue
-        }
-    }
-
-    # ── 3. Validar certificado ───────────────────────────────────────
-    $Cert = Get-ChildItem "Cert:\LocalMachine\My\$CertThumbprint" -ErrorAction Stop
-    Write-Host "Certificado encontrado: $($Cert.Subject) (expira: $($Cert.NotAfter.ToString('yyyy-MM-dd')))"
-
-    # ── 4. Crear nuevo sitio IIS ─────────────────────────────────────
-    Write-Host "Creando sitio '$SiteName' en: $FrontendDir"
-    New-Website -Name $SiteName `
-                -PhysicalPath $FrontendDir `
-                -Force | Out-Null
-
-    # Eliminar bindings por defecto (HTTP :80) creados automáticamente
-    Get-WebBinding -Name $SiteName | Remove-WebBinding
-
-    # ── 5. Agregar binding HTTPS con certificado ─────────────────────
-    Write-Host "Configurando HTTPS en puerto $HttpsPort (host: $HostName)..."
-    if ($HostName -ne '') {
-        New-WebBinding -Name $SiteName `
-                       -Protocol "https" `
-                       -Port $HttpsPort `
-                       -HostHeader $HostName `
-                       -SslFlags 1 `
-                       -IPAddress "*"
-    } else {
-        New-WebBinding -Name $SiteName `
-                       -Protocol "https" `
-                       -Port $HttpsPort `
-                       -IPAddress "*"
-    }
-
-    # Asignar certificado al binding
-    $Binding = Get-WebBinding -Name $SiteName -Protocol "https"
-    $Binding.AddSslCertificate($CertThumbprint, "My")
-    Write-Host "Certificado SSL asignado correctamente."
-
-    # ── 6. Agregar binding HTTP (redirect a HTTPS) ───────────────────
-    if ($HostName -ne '') {
-        New-WebBinding -Name $SiteName `
-                       -Protocol "http" `
-                       -Port 80 `
-                       -HostHeader $HostName `
-                       -IPAddress "*"
-    } else {
-        New-WebBinding -Name $SiteName `
-                       -Protocol "http" `
-                       -Port 80 `
-                       -IPAddress "*"
-    }
-    Write-Host "Binding HTTP :80 agregado (redireccion a HTTPS via web.config)."
-
-    # ── 7. Configurar Application Pool ───────────────────────────────
-    $PoolName = $SiteName -replace '[^a-zA-Z0-9]', ''
-    $PoolName = "${PoolName}Pool"
-
-    if (-not (Test-Path "IIS:\AppPools\$PoolName")) {
-        New-WebAppPool -Name $PoolName | Out-Null
-    }
-    Set-ItemProperty "IIS:\AppPools\$PoolName" -Name "managedRuntimeVersion" -Value ""
-    Set-ItemProperty "IIS:\AppPools\$PoolName" -Name "processModel.identityType" -Value "ApplicationPoolIdentity"
-    Set-ItemProperty "IIS:\Sites\$SiteName" -Name "applicationPool" -Value $PoolName
-    Write-Host "Application Pool '$PoolName' configurado (No Managed Code)."
-
-    # ── 8. Iniciar el sitio (reintentar — IIS puede tardar en registrar el objeto) ─
-    $MaxRetries = 3
     for ($i = 1; $i -le $MaxRetries; $i++) {
         try {
-            Start-Sleep -Seconds 2
-            Start-Website -Name $SiteName
-            Write-Host "Sitio '$SiteName' iniciado correctamente."
-            break
+            Start-Sleep -Seconds $DelaySeconds
+            Start-Website -Name $Name -ErrorAction Stop
+            Write-Information "Sitio '$Name' iniciado correctamente en el intento $i."
+            return
         }
         catch {
-            Write-Host "Intento $i/$MaxRetries - esperando a que IIS registre el sitio..."
+            # FIX: Delimitamos la variable con ${} para separarla de los dos puntos
+            Write-Warning "Intento $i/${MaxRetries}: Esperando a que el proveedor IIS registre el objeto..."
+            
             if ($i -eq $MaxRetries) {
-                Write-Host "ADVERTENCIA: No se pudo iniciar el sitio automaticamente. IIS lo iniciara al recibir la primera peticion."
+                Write-Warning "No se pudo iniciar el sitio automáticamente. IIS lo iniciará al recibir la primera petición externa."
             }
         }
     }
+}
 
-    Write-Host ""
-    Write-Host "=== Configuracion IIS completada ==="
-    Write-Host "  Sitio:        $SiteName"
-    Write-Host "  Ruta fisica:  $FrontendDir"
-    Write-Host "  HTTPS:        https://localhost:$HttpsPort"
-    Write-Host "  Reverse Proxy: /api/* -> http://localhost:$BackendPort/api/*"
-    Write-Host "  (El reverse proxy se configura via web.config del frontend)"
-    Write-Host ""
+# =====================================================================
+# Inicialización y Logs
+# =====================================================================
 
-    if ($TranscriptStarted) { Stop-Transcript }
-    exit 0
+$logDir = Split-Path -Parent $LogFile
+if (-not [string]::IsNullOrWhiteSpace($logDir) -and -not (Test-Path -Path $logDir)) {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+
+Start-Transcript -Path $LogFile -Force -Append:$false | Out-Null
+
+Write-Information "=== Configuración Sitio IIS - Diagnóstico ==="
+Write-Information "  SiteName:       $SiteName"
+Write-Information "  FrontendDir:    $FrontendDir"
+Write-Information "  CertThumbprint: $CertThumbprint"
+Write-Information "  HostName:       $(if ($HostName) { $HostName } else { '* (Any)' })"
+Write-Information "  Puertos:        HTTPS:$HttpsPort | Backend:$BackendPort"
+Write-Information "============================================"
+
+try {
+    # ── 0. Cargar Módulo IIS ─────────────────────────────────────────
+    Import-Module WebAdministration -ErrorAction Stop
+
+    # ── 1. Limpieza Idempotente (Sitio y AppPool) ────────────────────
+    if (Get-Website -Name $SiteName -ErrorAction SilentlyContinue) {
+        Write-Information "Limpiando sitio IIS existente '$SiteName'..."
+        Stop-Website -Name $SiteName -ErrorAction SilentlyContinue
+        Remove-Website -Name $SiteName -ErrorAction Stop
+        Start-Sleep -Seconds 1
+    }
+
+    $poolName = ($SiteName -replace '[^a-zA-Z0-9]', '') + 'Pool'
+    if (Test-Path -Path "IIS:\AppPools\$poolName") {
+        Write-Information "Limpiando Application Pool existente '$poolName'..."
+        Remove-WebAppPool -Name $poolName -ErrorAction Stop
+    }
+
+    # ── 2. Resolución de Conflictos (Default Web Site) ───────────────
+    $defaultSite = Get-Website -Name "Default Web Site" -ErrorAction SilentlyContinue
+    if ($defaultSite -and $defaultSite.State -eq 'Started') {
+        $conflict = Get-WebBinding -Name "Default Web Site" -ErrorAction SilentlyContinue | 
+        Where-Object { $_.bindingInformation -match ":${HttpsPort}:" }
+        
+        if ($conflict) {
+            Write-Warning "Se detectó conflicto en puerto $HttpsPort con 'Default Web Site'. Deteniendo sitio por defecto..."
+            Stop-Website -Name "Default Web Site" -ErrorAction Stop
+        }
+    }
+
+    # ── 3. Validación de Certificado SSL ─────────────────────────────
+    Write-Information "Validando certificado SSL ($CertThumbprint)..."
+    $certPath = "Cert:\LocalMachine\My\$CertThumbprint"
+    if (-not (Test-Path -Path $certPath)) {
+        throw "No se encontró el certificado con huella $CertThumbprint en LocalMachine\My."
+    }
+    $cert = Get-Item -Path $certPath
+    Write-Information "Certificado encontrado: $($cert.Subject) (Expira: $($cert.NotAfter.ToString('yyyy-MM-dd')))"
+
+    # ── 4. Configurar Application Pool ───────────────────────────────
+    Write-Information "Creando Application Pool '$poolName' (No Managed Code)..."
+    New-WebAppPool -Name $poolName | Out-Null
+    Set-ItemProperty -Path "IIS:\AppPools\$poolName" -Name "managedRuntimeVersion" -Value ""
+    Set-ItemProperty -Path "IIS:\AppPools\$poolName" -Name "processModel.identityType" -Value "ApplicationPoolIdentity"
+
+    # ── 5. Crear Sitio IIS ───────────────────────────────────────────
+    Write-Information "Creando sitio '$SiteName' vinculado a '$poolName'..."
+    New-Website -Name $SiteName -PhysicalPath $FrontendDir -ApplicationPool $poolName -Force | Out-Null
+
+    Get-WebBinding -Name $SiteName | Remove-WebBinding
+
+    # ── 6. Configurar Bindings (HTTPS y HTTP Redirect) ───────────────
+    Write-Information "Configurando bindings de red..."
+
+    $bindingParamsHttps = @{
+        Name      = $SiteName
+        Protocol  = 'https'
+        Port      = $HttpsPort
+        IPAddress = '*'
+    }
+    $bindingParamsHttp = @{
+        Name      = $SiteName
+        Protocol  = 'http'
+        Port      = 80
+        IPAddress = '*'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($HostName)) {
+        $bindingParamsHttps.Add('HostHeader', $HostName)
+        $bindingParamsHttps.Add('SslFlags', 1)
+        $bindingParamsHttp.Add('HostHeader', $HostName)
+    }
+
+    New-WebBinding @bindingParamsHttps
+    $httpsBinding = Get-WebBinding -Name $SiteName -Protocol 'https'
+    $httpsBinding.AddSslCertificate($CertThumbprint, "My")
+    Write-Information "Binding HTTPS configurado y certificado asignado exitosamente."
+
+    New-WebBinding @bindingParamsHttp
+    Write-Information "Binding HTTP (Puerto 80) configurado para redirección."
+
+    # ── 7. Arranque del Sitio ────────────────────────────────────────
+    Wait-IisSiteStart -Name $SiteName
+
+    Write-Information "=== Configuración de IIS Completada ==="
+    
+    # FIX: Reemplazo del operador ternario por un bloque if/else seguro para PS 5.1
+    $displayHost = if ([string]::IsNullOrWhiteSpace($HostName)) { 'localhost' } else { $HostName }
+    Write-Information " Sitio operativo en: https://${displayHost}:$HttpsPort"
+
 }
 catch {
-    $errText = $_.Exception.Message
-    $errStack = $_.ScriptStackTrace
-    Write-Host "ERROR: $errText"
-    Write-Host "STACK: $errStack"
-    if ($TranscriptStarted) { Stop-Transcript }
-    # Escribir error al log aunque transcript haya fallado
-    $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    "$ts - ERROR: $errText" | Out-File $LogFile -Append -ErrorAction SilentlyContinue
-    "STACK: $errStack" | Out-File $LogFile -Append -ErrorAction SilentlyContinue
+    Write-Error "Fallo crítico en la configuración del sitio IIS: $($_.Exception.Message)"
+    Write-Verbose "Stack Trace:`n$($_.ScriptStackTrace)"
+    Stop-Transcript | Out-Null
     exit 1
 }
+
+Stop-Transcript | Out-Null
+exit 0
