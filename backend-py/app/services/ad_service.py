@@ -132,6 +132,7 @@ def authenticate_user(username: str, password: str) -> dict[str, Any]:
 
     # 1) Bind con cuenta de servicio para buscar el DN del usuario
     try:
+        # FIX-A6: receive_timeout evita bloqueos indefinidos si el DC no responde
         svc_conn = Connection(
             server,
             user=config.AD_SERVICE_USER,
@@ -139,6 +140,7 @@ def authenticate_user(username: str, password: str) -> dict[str, Any]:
             auto_bind=True,
             raise_exceptions=True,
             read_only=True,
+            receive_timeout=10,
         )
     except LDAPException as exc:
         logger.error("No se pudo conectar al AD con la cuenta de servicio: %s", exc)
@@ -163,7 +165,8 @@ def authenticate_user(username: str, password: str) -> dict[str, Any]:
 
     # 2) Bind con las credenciales del usuario para validarlas
     try:
-        user_conn = Connection(server, user=user_dn, password=password, auto_bind=True, raise_exceptions=True)
+        # FIX-A6: receive_timeout también en la conexión del usuario
+        user_conn = Connection(server, user=user_dn, password=password, auto_bind=True, raise_exceptions=True, receive_timeout=10)
         user_conn.unbind()
     except LDAPBindError as exc:
         msg = str(exc)

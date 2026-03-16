@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Instala y configura el Servicio Backend (NSSM) para el Portal RDS Web.
 
@@ -236,8 +236,11 @@ try {
 
     $logConfigurations = @(
         @('set', $ServiceName, 'AppStdout', "$logDir\backend-out.log"),
-        @('set', $ServiceName, 'AppStderr', "$logDir\backend-error.log")
-        # ... demás configuración de logs ...
+        @('set', $ServiceName, 'AppStderr', "$logDir\backend-error.log"),
+        @('set', $ServiceName, 'AppRotateFiles', '1'),
+        @('set', $ServiceName, 'AppRotateOnline', '1'),
+        @('set', $ServiceName, 'AppRotateSeconds', '86400'),
+        @('set', $ServiceName, 'AppRotateBytes', '10485760') # 10MB
     )
 
     foreach ($logArgs in $logConfigurations) { Invoke-NssmCommand -NssmPath $nssmExe -Arguments $logArgs }

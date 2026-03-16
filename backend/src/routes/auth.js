@@ -31,7 +31,7 @@ router.post('/login', async (req, res) => {
         res.cookie('rdweb_token', token, {
             httpOnly: true,
             secure: config.nodeEnv === 'production',
-            sameSite: 'lax',
+            sameSite: 'strict',
             maxAge: timeoutMinutes * 60 * 1000,
             path: '/',
         });

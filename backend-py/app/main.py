@@ -38,28 +38,43 @@ app = FastAPI(
     redoc_url=None,
 )
 
-# ── CORS (equivalente a la config de Express) ────────────────────────────
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:4200", "http://localhost:4300"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
-)
+# ── CORS ──────────────────────────────────────────────────────────────────
+# FIX-C5: En producción, frontend y backend comparten origen vía IIS + ARR
+# (reverse proxy same-origin), por lo que CORS no es necesario.
+# Solo se habilita en desarrollo, donde Angular corre en :4200 y el backend en :3000.
+if config.NODE_ENV != "production":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:4200", "http://localhost:4300"],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
+    )
 
 # ── Health check ──────────────────────────────────────────────────────────
 
 @app.get("/api/health")
 async def health():
+    # FIX-A3: No exponer información de infraestructura interna (RDCB, modo simulación).
+    # Solo devolver el estado del servicio y timestamp.
     from datetime import datetime, timezone
 
     return {
         "status": "ok",
-        "simulationMode": config.SIMULATION_MODE,
-        "rdcbServer": config.RDCB_SERVER,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
+
+# ── Rate Limiting (FIX-C2) ────────────────────────────────────────────────
+# Registrar el estado del limiter y su handler de excepción (HTTP 429)
+# para que slowapi funcione correctamente con FastAPI.
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+from app.routers.auth import limiter
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── Routers ───────────────────────────────────────────────────────────────
 app.include_router(auth.router)

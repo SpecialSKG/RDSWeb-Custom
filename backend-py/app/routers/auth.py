@@ -13,8 +13,10 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from jose import jwt
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core import config
 from app.core.security import authenticate
@@ -22,6 +24,10 @@ from app.models.schemas import LoginRequest, UserInfo, UserPayload
 from app.services.ad_service import AuthError, authenticate_user
 
 logger = logging.getLogger("rdweb.auth")
+
+# FIX-C2: Rate limiter basado en IP del cliente.
+# Protege contra ataques de fuerza bruta en el endpoint de login.
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -32,9 +38,15 @@ def _get_initials(name: str) -> str:
 
 
 @router.post("/login")
-async def login(body: LoginRequest, response: Response):
+@limiter.limit("5/minute")  # FIX-C2: Máximo 5 intentos de login por minuto por IP
+async def login(request: Request, body: LoginRequest, response: Response):
+    # FIX-A2: Devolver HTTP 400 (Bad Request) si faltan campos,
+    # en lugar de HTTP 200 con error en el body.
     if not body.username or not body.password:
-        return {"error": "Usuario y contraseña son requeridos", "code": "MISSING_FIELDS"}
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "Usuario y contraseña son requeridos", "code": "MISSING_FIELDS"},
+        )
 
     try:
         # authenticate_user es bloqueante (LDAP I/O) → ejecutar en thread pool
@@ -68,7 +80,7 @@ async def login(body: LoginRequest, response: Response):
         value=token,
         httponly=True,
         secure=config.NODE_ENV == "production",
-        samesite="lax",
+        samesite="strict",
         max_age=timeout_minutes * 60,
         path="/",
     )

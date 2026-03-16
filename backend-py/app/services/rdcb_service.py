@@ -135,6 +135,15 @@ async def get_apps_for_user(user: UserPayload) -> dict[str, list[AppResource]]:
 
     # ── MODO REAL — PowerShell ────────────────────────────────────────
     rdcb = config.RDCB_SERVER
+
+    # FIX-C3: Validar que RDCB_SERVER solo contenga caracteres válidos
+    # de un FQDN/hostname para prevenir inyección de comandos PowerShell.
+    # Solo se permiten: letras, números, puntos, guiones y guiones bajos.
+    if not re.fullmatch(r"[a-zA-Z0-9._\-]+", rdcb):
+        raise RuntimeError(f"RDCB_SERVER contiene caracteres no válidos: {rdcb!r}")
+
+    # FIX-C3: Usar comillas simples alrededor del valor de RDCB para evitar
+    # interpolación de variables o metacaracteres de PowerShell.
     ps_script = (
         "$WarningPreference = 'SilentlyContinue'; "
         "$ErrorActionPreference = 'Stop'; "

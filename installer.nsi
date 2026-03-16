@@ -1,4 +1,4 @@
-﻿; =====================================================================
+; =====================================================================
 ; Instalador NSIS - Portal RD Web (Refactorizado)
 ; =====================================================================
 
@@ -382,15 +382,20 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
         File "backend\node.exe"
     !endif
 
-    ; --- Generar JWT Secreto VBS ---
+    ; --- FIX-C6: Generar JWT Secreto con CSPRNG de PowerShell ---
+    ; Reemplaza VBScript Rnd() (no criptográfico) por
+    ; [System.Security.Cryptography.RandomNumberGenerator] (CSPRNG).
+    ; Genera 32 bytes aleatorios → 64 caracteres hex (256 bits de entropía).
     DetailPrint "Generando archivo .env..."
     InitPluginsDir
-    FileOpen $0 "$PLUGINSDIR\gen-jwt.vbs" w
-    FileWrite $0 'Randomize : Dim s, i : For i = 1 To 32 : s = s & Hex(Int((15 * Rnd) + 0)) : Next : WScript.StdOut.Write s'
+    FileOpen $0 "$PLUGINSDIR\gen-jwt.ps1" w
+    FileWrite $0 "$$bytes = New-Object byte[] 32$\r$\n"
+    FileWrite $0 "[System.Security.Cryptography.RandomNumberGenerator]::Fill($$bytes)$\r$\n"
+    FileWrite $0 "[System.Console]::Write(([BitConverter]::ToString($$bytes) -replace '-',''))$\r$\n"
     FileClose $0
-    nsExec::ExecToStack 'cscript.exe //nologo "$PLUGINSDIR\gen-jwt.vbs"'
+    nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "$PLUGINSDIR\gen-jwt.ps1"'
     Pop $0
-    Pop $1 ; JWT_SECRET en $1
+    Pop $1 ; JWT_SECRET en $1 (64 caracteres hex, 256 bits CSPRNG)
 
     ; --- Escritura de Configuración (.env) ---
     FileOpen $0 "$INSTDIR\backend\.env" w
