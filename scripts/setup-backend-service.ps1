@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Instala y configura el Servicio Backend (NSSM) para el Portal RDS Web.
 
@@ -46,8 +46,6 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$ServiceName,
 
-    # FIX: Usamos FileInfo en lugar de string para evitar alertas del PSScriptAnalyzer 
-    # y mejorar el tipado estricto de la ruta.
     [Parameter(Mandatory = $true)]
     [System.IO.FileInfo]$CredentialFile,
 
@@ -76,7 +74,6 @@ function Invoke-NssmCommand {
         [Parameter(Mandatory = $true)][string[]]$Arguments
     )
     
-    # Ocultamos los argumentos en el log si detectamos que se está pasando una contraseña
     $safeArgsToLog = if ($Arguments -contains 'ObjectName') { "[Argumentos ocultos por seguridad]" } else { $Arguments -join ' ' }
     Write-Verbose "Ejecutando NSSM: $NssmPath $safeArgsToLog"
     
@@ -91,10 +88,7 @@ function Test-ActiveDirectoryCredential {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$Username,
-        
-        # FIX: PSScriptAnalyzer(PSAvoidUsingPlainTextForPassword)
         [Parameter(Mandatory = $true)][SecureString]$SecurePassword,
-        
         [Parameter(Mandatory = $true)][string]$DomainDNS
     )
     
@@ -106,8 +100,6 @@ function Test-ActiveDirectoryCredential {
         )
         
         $cleanUsername = if ($Username -match '\\') { $Username.Split('\\')[-1] } else { $Username }
-        
-        # Desencriptamos a texto plano SÓLO para enviar al método de AD
         $plainTextPass = (New-Object System.Management.Automation.PSCredential("dummy", $SecurePassword)).GetNetworkCredential().Password
         
         if (-not $context.ValidateCredentials($cleanUsername, $plainTextPass)) {
@@ -119,34 +111,48 @@ function Test-ActiveDirectoryCredential {
         Write-Warning "No se pudo verificar contra el dominio: $($_.Exception.Message)."
     }
     finally {
-        # Limpiamos el texto plano de esta variable local inmediatamente
         $plainTextPass = $null 
     }
 }
 
 function Format-ServiceAccountName {
-    # ... (Sin cambios respecto a la versión anterior) ...
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$User,
         [string]$Domain
     )
-    if ($User -match '\\') { return $User }
+    
+    if ($User -match '\\') { 
+        return $User 
+    }
+    
     if ($User -match '@') {
         try {
             Add-Type -AssemblyName System.DirectoryServices
             $searcher = [System.DirectoryServices.DirectorySearcher]::new()
             $searcher.Filter = "(&(objectClass=user)(userPrincipalName=$User))"
             $result = $searcher.FindOne()
+            
             if ($result) {
                 $samAccount = $result.Properties['samaccountname'][0]
-                return if ($Domain) { "$Domain\$samAccount" } else { $samAccount }
+                if ($Domain) { 
+                    return "$Domain\$samAccount" 
+                } else { 
+                    return $samAccount 
+                }
             }
         }
-        catch { Write-Warning "Fallo al resolver UPN a SamAccountName." }
+        catch { 
+            Write-Warning "Fallo al resolver UPN a SamAccountName." 
+        }
         return $User
     }
-    return if ($Domain) { "$Domain\$User" } else { $User }
+    
+    if ($Domain) { 
+        return "$Domain\$User" 
+    } else { 
+        return $User 
+    }
 }
 
 # =====================================================================
@@ -162,7 +168,6 @@ try {
         throw "Archivo de credenciales no encontrado en la ruta: $($CredentialFile.FullName)"
     }
     
-    # Leemos, convertimos a SecureString INMEDIATAMENTE y borramos la cadena plana de memoria
     $rawText = (Get-Content -Path $CredentialFile.FullName -Raw).Trim()
     $secureServicePassword = ConvertTo-SecureString -String $rawText -AsPlainText -Force
     $rawText = $null 
@@ -172,23 +177,27 @@ try {
 
     # ── 2. Resolución de Rutas y Entorno ─────────────────────────────
     $effectiveUser = if ([string]::IsNullOrWhiteSpace($ServiceUser)) { "$env:USERDOMAIN\$env:USERNAME" } else { $ServiceUser }
-    $effectiveDomain = if ([string]::IsNullOrWhiteSpace($ServiceDomain)) {
-        try { ([System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()).NetBiosName } 
-        catch { $env:USERDOMAIN }
+    
+    if ([string]::IsNullOrWhiteSpace($ServiceDomain)) {
+        try { 
+            $effectiveDomain = ([System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()).NetBiosName 
+        } catch { 
+            $effectiveDomain = $env:USERDOMAIN 
+        }
+    } else { 
+        $effectiveDomain = $ServiceDomain 
     }
-    else { $ServiceDomain }
 
     $nssmExe = Join-Path -Path $BackendDir -ChildPath "nssm.exe"
     $logDir = Join-Path -Path $BackendDir -ChildPath "logs"
 
-    # ... (Bloque de validación de binarios python/node idéntico a la versión anterior) ...
     if ($BackendType -eq 'python') {
         $mainExe = Join-Path -Path $BackendDir -ChildPath "main.exe"
         $appPath = $mainExe
         $appArgs = ""
-        $envExtra = "PYTHONUNBUFFERED=1"
-    }
-    else {
+        # Inyectamos PYTHONUTF8=1 usando un salto de línea (`n) para NSSM
+        $envExtra = "PYTHONUNBUFFERED=1`nPYTHONUTF8=1"
+    } else {
         $nodeExe = Join-Path -Path $BackendDir -ChildPath "node.exe"
         $appEntry = Join-Path -Path $BackendDir -ChildPath "src\index.js"
         $appPath = $nodeExe
@@ -211,7 +220,6 @@ try {
     Write-Information "Instalando servicio '$ServiceName' con backend '$BackendType'..."
     $nssmAccountName = Format-ServiceAccountName -User $effectiveUser -Domain $effectiveDomain
 
-    # Necesitamos temporalmente el texto plano para el comando de línea de NSSM
     $tempPlainTextPass = (New-Object System.Management.Automation.PSCredential("dummy", $secureServicePassword)).GetNetworkCredential().Password
 
     $nssmConfigurations = @(
@@ -228,11 +236,12 @@ try {
         Invoke-NssmCommand -NssmPath $nssmExe -Arguments $validArgs
     }
     
-    # Destruir la variable plana usada para NSSM inmediatamente
     $tempPlainTextPass = $null
 
     # ── 6. Configuración de Logs (Rotación) ──────────────────────────
-    if (-not (Test-Path -Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
+    if (-not (Test-Path -Path $logDir)) { 
+        New-Item -ItemType Directory -Force -Path $logDir | Out-Null 
+    }
 
     $logConfigurations = @(
         @('set', $ServiceName, 'AppStdout', "$logDir\backend-out.log"),
@@ -240,10 +249,12 @@ try {
         @('set', $ServiceName, 'AppRotateFiles', '1'),
         @('set', $ServiceName, 'AppRotateOnline', '1'),
         @('set', $ServiceName, 'AppRotateSeconds', '86400'),
-        @('set', $ServiceName, 'AppRotateBytes', '10485760') # 10MB
+        @('set', $ServiceName, 'AppRotateBytes', '10485760')
     )
 
-    foreach ($logArgs in $logConfigurations) { Invoke-NssmCommand -NssmPath $nssmExe -Arguments $logArgs }
+    foreach ($logArgs in $logConfigurations) { 
+        Invoke-NssmCommand -NssmPath $nssmExe -Arguments $logArgs 
+    }
 
     # ── 7. Arranque del Servicio ─────────────────────────────────────
     Start-Service -Name $ServiceName

@@ -37,8 +37,8 @@ def _get_initials(name: str) -> str:
     return "".join(p[0].upper() for p in parts if p)
 
 
-@router.post("/login")
 @limiter.limit("5/minute")  # FIX-C2: Máximo 5 intentos de login por minuto por IP
+@router.post("/login")
 async def login(request: Request, body: LoginRequest, response: Response):
     # FIX-A2: Devolver HTTP 400 (Bad Request) si faltan campos,
     # en lugar de HTTP 200 con error en el body.

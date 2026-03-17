@@ -1,5 +1,5 @@
-; =====================================================================
-; Instalador NSIS - Portal RD Web (Refactorizado)
+﻿; =====================================================================
+; Instalador NSIS - Portal RD Web (Refactorizado y Mejorado)
 ; =====================================================================
 
 !include "MUI2.nsh"
@@ -9,6 +9,8 @@
 ; =====================================================================
 ; DEFINICIONES GENERALES
 ; =====================================================================
+Unicode true
+
 !define MyAppName "Portal RDS Web"
 !define MyAppPublisher "MH-DINAFI-USC"
 !define ServiceName "RDSWeb"
@@ -92,7 +94,6 @@ ShowUninstDetails show
 
 ; -- Orden de Páginas --
 !insertmacro MUI_PAGE_WELCOME
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW PageADShow
 Page custom PageADCreate PageADLeave
 Page custom PageCertCreate PageCertLeave
 !insertmacro MUI_PAGE_COMPONENTS
@@ -136,7 +137,7 @@ Function PageADCreate
     ${NSD_CreateText} 0 60u 100% 12u ""
     Pop $TxtAdDomain
 
-    ${NSD_CreateLabel} 0 75u 48% 10u "Cuenta servicio (UPN):"
+    ${NSD_CreateLabel} 0 75u 48% 10u "Cuenta servicio (Usuario):"
     Pop $0
     ${NSD_CreateText} 0 85u 48% 12u ""
     Pop $TxtAdUser
@@ -151,64 +152,19 @@ Function PageADCreate
     ${NSD_CreateText} 0 115u 100% 12u ""
     Pop $TxtSrvRdcb
 
-    nsDialogs::Show
-FunctionEnd
-
-; =====================================================================
-; CALLBACK: Mostrar / inicializar valores rápidos al mostrar la página AD
-; =====================================================================
-Function PageADShow
-    ; Rellenar valores por defecto (rápidos) al mostrar la página
-    ReadEnvStr $2 "LOGONSERVER"
-    ReadEnvStr $3 "USERDNSDOMAIN"
-    ${WordFind} "$2" "\" "-1" $2
-
-    ; Calcular Base DN (si existe USERDNSDOMAIN)
-    ${If} $3 == ""
-        StrCpy $1 ""
-    ${Else}
-        Push $R0
-        Push $R1
-        Push $R2
-        Push $R3
-        Push $R4
-        Push $R5
-
-        StrCpy $R0 $3
-        StrCpy $R1 ""
-        StrCpy $R2 ""
-        StrLen $R3 $R0
-        
-        ${For} $R4 0 $R3
-            StrCpy $R5 $R0 1 $R4
-            ${If} $R5 == "."
-            ${OrIf} $R4 == $R3
-                ${If} $R1 != ""
-                    ${If} $R2 == ""
-                        StrCpy $R2 "DC=$R1"
-                    ${Else}
-                        StrCpy $R2 "$R2,DC=$R1"
-                    ${EndIf}
-                    StrCpy $R1 ""
-                ${EndIf}
-            ${Else}
-                StrCpy $R1 "$R1$R5"
-            ${EndIf}
-        ${Next}
-        StrCpy $1 $R2
-
-        Pop $R5
-        Pop $R4
-        Pop $R3
-        Pop $R2
-        Pop $R1
-        Pop $R0
+    ; =================================================================
+    ; RESTAURAR ESTADO (Si el usuario presionó "Atrás")
+    ; =================================================================
+    ${If} $ValAdLdap != ""
+        ${NSD_SetText} $TxtAdLdap $ValAdLdap
+        ${NSD_SetText} $TxtAdBaseDn $ValAdBaseDn
+        ${NSD_SetText} $TxtAdDomain $ValAdDomain
+        ${NSD_SetText} $TxtAdUser $ValAdUser
+        ${NSD_SetText} $TxtAdPass $ValAdPass
+        ${NSD_SetText} $TxtSrvRdcb $ValSrvRdcb
     ${EndIf}
 
-    ${NSD_SetText} $TxtAdLdap "ldap://$2.$3"
-    ${NSD_SetText} $TxtAdBaseDn "$1"
-    ReadEnvStr $4 "USERDOMAIN"
-    ${NSD_SetText} $TxtAdDomain "$4"
+    nsDialogs::Show
 FunctionEnd
 
 Function PageADLeave
@@ -232,6 +188,58 @@ Function PageADLeave
         MessageBox MB_ICONSTOP|MB_OK "Debe ingresar el servidor RD Connection Broker."
         Abort
     ${EndIf}
+
+    ; =================================================================
+    ; MEJORA 1: VALIDAR CREDENCIALES (Método AccountManagement original)
+    ; =================================================================
+    InitPluginsDir
+    FileOpen $0 "$PLUGINSDIR\ad-pass.dat" w
+    FileWrite $0 $ValAdPass
+    FileClose $0
+
+    FileOpen $0 "$PLUGINSDIR\test-ad.ps1" w
+    FileWrite $0 "param([string]$$domain, [string]$$user)$\r$\n"
+    FileWrite $0 "$$pass = (Get-Content '$PLUGINSDIR\ad-pass.dat' -Raw).Trim()$\r$\n"
+    ; Extraemos solo el usuario si escribieron formato UPN o DOMINIO\Usuario
+    FileWrite $0 "if ($$user -match '\\') { $$user = ($$user -split '\\')[1] }$\r$\n"
+    FileWrite $0 "if ($$user -match '@') { $$user = ($$user -split '@')[0] }$\r$\n"
+    
+    FileWrite $0 "try {$\r$\n"
+    FileWrite $0 "    Add-Type -AssemblyName System.DirectoryServices.AccountManagement$\r$\n"
+    FileWrite $0 "    $$context = [System.DirectoryServices.AccountManagement.PrincipalContext]::new([System.DirectoryServices.AccountManagement.ContextType]::Domain, $$domain)$\r$\n"
+    FileWrite $0 "    if ($$context.ValidateCredentials($$user, $$pass)) { exit 0 } else { exit 1 }$\r$\n"
+    FileWrite $0 "} catch {$\r$\n"
+    FileWrite $0 "    exit 2$\r$\n"
+    FileWrite $0 "}$\r$\n"
+    FileClose $0
+
+    System::Call 'user32::LoadCursor(i 0, i 32514) i .r0'
+    System::Call 'user32::SetCursor(i r0)'
+
+    nsExec::Exec '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "$PLUGINSDIR\test-ad.ps1" "$ValAdDomain" "$ValAdUser"'
+    Pop $0
+    Delete "$PLUGINSDIR\ad-pass.dat"
+    
+    ${If} $0 == 1
+        MessageBox MB_ICONSTOP|MB_OK "La contraseña ingresada no es válida para la cuenta de servicio.$\r$\nPor favor, verifique e intente de nuevo."
+        Abort
+    ${ElseIf} $0 == 2
+        MessageBox MB_ICONEXCLAMATION|MB_OK "No se pudo contactar al Dominio NetBIOS proporcionado para validar la contraseña.$\r$\nVerifique que el dominio escrito sea correcto."
+        Abort
+    ${EndIf}
+
+    ; =================================================================
+    ; PRE-CARGAR CERTIFICADOS 
+    ; =================================================================
+    FileOpen $0 "$PLUGINSDIR\enum-certs.ps1" w
+    FileWrite $0 "$$certs = Get-ChildItem Cert:\LocalMachine\My | Where-Object { $$_.HasPrivateKey -and $$_.NotAfter -gt (Get-Date) }$\r$\n"
+    FileWrite $0 "$$certs_display = $$certs | ForEach-Object { $$_.Subject + ' (exp: ' + $$_.NotAfter.ToString('yyyy-MM-dd') + ')' }$\r$\n"
+    FileWrite $0 "$$certs_thumb = $$certs | ForEach-Object { $$_.Thumbprint }$\r$\n"
+    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\certs_list.txt', $$certs_display, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
+    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\certs_thumb.txt', $$certs_thumb, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
+    FileClose $0
+
+    nsExec::Exec '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "$PLUGINSDIR\enum-certs.ps1"'
 FunctionEnd
 
 ; =====================================================================
@@ -253,29 +261,16 @@ Function PageCertCreate
     ${NSD_CreateLabel} 0 50u 100% 12u "Nombre de host (FQDN):"
     Pop $0
 
-    ReadEnvStr $0 "COMPUTERNAME"
-    ReadEnvStr $1 "USERDNSDOMAIN"
-    ${If} $1 != ""
-        StrCpy $2 "$0.$1"
-    ${Else}
-        StrCpy $2 "$0"
+    ; Preservar el host si el usuario vuelve atrás, de lo contrario vacío
+    StrCpy $2 ""
+    ${If} $ValHost != ""
+        StrCpy $2 $ValHost
     ${EndIf}
+    
     ${NSD_CreateText} 0 65u 100% 12u "$2"
     Pop $TxtHost
 
-    ; Extraer y listar certificados vía PowerShell
-    InitPluginsDir
-    FileOpen $0 "$PLUGINSDIR\enum-certs.ps1" w
-    FileWrite $0 "$$certs = Get-ChildItem Cert:\LocalMachine\My | Where-Object { $$_.HasPrivateKey -and $$_.NotAfter -gt (Get-Date) }$\r$\n"
-    FileWrite $0 "$$certs_display = $$certs | ForEach-Object { $$_.Subject + ' (exp: ' + $$_.NotAfter.ToString('yyyy-MM-dd') + ')' }$\r$\n"
-    FileWrite $0 "$$certs_thumb = $$certs | ForEach-Object { $$_.Thumbprint }$\r$\n"
-    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\certs_list.txt', $$certs_display, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
-    FileWrite $0 "[System.IO.File]::WriteAllLines('$PLUGINSDIR\certs_thumb.txt', $$certs_thumb, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
-    FileClose $0
-
-    nsExec::Exec 'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "$PLUGINSDIR\enum-certs.ps1"'
-
-    ; Cargar certificados en el ComboBox (Refactorizado con LogicLib)
+    ; Cargar los certificados que ya pre-procesamos
     ClearErrors
     FileOpen $0 "$PLUGINSDIR\certs_list.txt" r
     ${If} $0 != ""
@@ -376,39 +371,39 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
         File /r "backend\src\*"
         SetOutPath "$INSTDIR\backend\node_modules"
         File /r "backend\node_modules\*"
+    
         SetOutPath "$INSTDIR\backend"
         File "backend\package.json"
         File "backend\nssm.exe"
         File "backend\node.exe"
     !endif
 
-    ; --- FIX-C6: Generar JWT Secreto con CSPRNG de PowerShell ---
-    ; Reemplaza VBScript Rnd() (no criptográfico) por
-    ; [System.Security.Cryptography.RandomNumberGenerator] (CSPRNG).
-    ; Genera 32 bytes aleatorios → 64 caracteres hex (256 bits de entropía).
-    DetailPrint "Generando archivo .env..."
-    InitPluginsDir
-    FileOpen $0 "$PLUGINSDIR\gen-jwt.ps1" w
-    FileWrite $0 "$$bytes = New-Object byte[] 32$\r$\n"
-    FileWrite $0 "[System.Security.Cryptography.RandomNumberGenerator]::Fill($$bytes)$\r$\n"
-    FileWrite $0 "[System.Console]::Write(([BitConverter]::ToString($$bytes) -replace '-',''))$\r$\n"
-    FileClose $0
-    nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "$PLUGINSDIR\gen-jwt.ps1"'
-    Pop $0
-    Pop $1 ; JWT_SECRET en $1 (64 caracteres hex, 256 bits CSPRNG)
-
     ; --- Escritura de Configuración (.env) ---
-    FileOpen $0 "$INSTDIR\backend\.env" w
+    DetailPrint "Generando archivo de configuración .env..."
+    
+    ; 1. Escribimos un archivo temporal
+    FileOpen $0 "$INSTDIR\backend\.env.tmp" w
     FileWrite $0 "# ============================================================$\r$\n"
     FileWrite $0 "# RDWeb Portal - Generado por el Instalador$\r$\n"
     FileWrite $0 "# ============================================================$\r$\n$\r$\n"
-    FileWrite $0 "PORT=3000$\r$\nNODE_ENV=production$\r$\nJWT_SECRET=$1$\r$\nJWT_EXPIRES_IN=1h$\r$\n$\r$\n"
-    FileWrite $0 "LDAP_URL=$ValAdLdap$\r$\nLDAP_BASE_DN=$ValAdBaseDn$\r$\nAD_DOMAIN=$ValAdDomain$\r$\n"
-    FileWrite $0 "AD_SERVICE_USER=$ValAdUser$\r$\nAD_SERVICE_PASS=$ValAdPass$\r$\nRDCB_SERVER=$ValSrvRdcb$\r$\n$\r$\n"
+    
+    ; Envolvemos los valores en comillas por seguridad
+    FileWrite $0 "PORT=3000$\r$\nNODE_ENV=production$\r$\nJWT_SECRET=$\"$1$\"$\r$\nJWT_EXPIRES_IN=1h$\r$\n$\r$\n"
+    FileWrite $0 "LDAP_URL=$\"$ValAdLdap$\"$\r$\nLDAP_BASE_DN=$\"$ValAdBaseDn$\"$\r$\nAD_DOMAIN=$\"$ValAdDomain$\"$\r$\n"
+    FileWrite $0 "AD_SERVICE_USER=$\"$ValAdUser$\"$\r$\nAD_SERVICE_PASS=$\"$ValAdPass$\"$\r$\nRDCB_SERVER=$\"$ValSrvRdcb$\"$\r$\n$\r$\n"
     FileWrite $0 "RDP_GATEWAY_CREDENTIAL_SOURCE=0$\r$\nRDP_PROMPT_CREDENTIAL_ONCE=true$\r$\n"
     FileWrite $0 "RDP_PROMPT_FOR_CREDENTIALS_ON_CLIENT=true$\r$\nRDP_USE_MULTIMON=false$\r$\n"
     FileWrite $0 "RDP_SPAN_MONITORS=false$\r$\nSIMULATION_MODE=false$\r$\n"
     FileClose $0
+
+    ; 2. PowerShell lee el archivo (Get-Content detecta la codificación correcta) y lo pasa a UTF-8 puro
+    FileOpen $0 "$PLUGINSDIR\convert-env.ps1" w
+    FileWrite $0 "$$content = Get-Content -Path '$INSTDIR\backend\.env.tmp' -Raw$\r$\n"
+    FileWrite $0 "[System.IO.File]::WriteAllText('$INSTDIR\backend\.env', $$content, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
+    FileWrite $0 "Remove-Item '$INSTDIR\backend\.env.tmp' -Force$\r$\n"
+    FileClose $0
+
+    nsExec::Exec '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "$PLUGINSDIR\convert-env.ps1"'
 
     ; --- Configurar Servicio NSSM ---
     DetailPrint "Configurando servicio backend..."
@@ -418,7 +413,12 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
     FileWrite $0 $ValAdPass
     FileClose $0
 
-    !insertmacro ExecPowerShell "$TEMP\setup-backend-service.ps1" '-BackendDir "$INSTDIR\backend" -ServiceName "${ServiceName}" -BackendType "${BackendType}" -ServiceUser "$ValAdUser" -ServiceDomain "$ValAdDomain" -CredentialFile "$TEMP\svcpwd.dat" -LogFile "$INSTDIR\backend\logs\install-service.log"'
+    ; Limpiar UPN: Extraer solo el nombre de usuario (ej: svc-rdweb)
+    StrCpy $R1 $ValAdUser
+    ${WordFind} "$R1" "\" "-1" $R1
+    ${WordFind} "$R1" "@" "+1" $R1
+
+    !insertmacro ExecPowerShell "$TEMP\setup-backend-service.ps1" '-BackendDir "$INSTDIR\backend" -ServiceName "${ServiceName}" -BackendType "${BackendType}" -ServiceUser "$R1" -ServiceDomain "$ValAdDomain" -CredentialFile "$TEMP\svcpwd.dat" -LogFile "$INSTDIR\backend\logs\install-service.log"'
     Delete "$TEMP\svcpwd.dat"
 SectionEnd
 
