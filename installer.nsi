@@ -16,7 +16,7 @@ Unicode true
 !define ServiceName "RDSWeb"
 
 !ifndef MyAppVersion
-  !define MyAppVersion "1.0.0"
+  !define MyAppVersion "0.0.0"
 !endif
 
 !ifndef BackendType
@@ -79,7 +79,7 @@ Var ValSrvRdcb
 ; =====================================================================
 Name "${MyAppName}"
 !ifndef OutFileExe
-  !define OutFileExe "RDWeb-Portal-Installer.exe"
+    !define OutFileExe "RDWeb-Portal-Installer-${MyAppVersion}.exe"
 !endif
 OutFile "${OutFileExe}"
 InstallDir "C:\inetpub\wwwroot"
@@ -391,9 +391,9 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
     FileWrite $0 "PORT=3000$\r$\nNODE_ENV=production$\r$\nJWT_SECRET=$\"$1$\"$\r$\nJWT_EXPIRES_IN=1h$\r$\n$\r$\n"
     FileWrite $0 "LDAP_URL=$\"$ValAdLdap$\"$\r$\nLDAP_BASE_DN=$\"$ValAdBaseDn$\"$\r$\nAD_DOMAIN=$\"$ValAdDomain$\"$\r$\n"
     FileWrite $0 "AD_SERVICE_USER=$\"$ValAdUser$\"$\r$\nAD_SERVICE_PASS=$\"$ValAdPass$\"$\r$\nRDCB_SERVER=$\"$ValSrvRdcb$\"$\r$\n$\r$\n"
-    FileWrite $0 "RDP_GATEWAY_CREDENTIAL_SOURCE=0$\r$\nRDP_PROMPT_CREDENTIAL_ONCE=true$\r$\n"
-    FileWrite $0 "RDP_PROMPT_FOR_CREDENTIALS_ON_CLIENT=true$\r$\nRDP_USE_MULTIMON=false$\r$\n"
-    FileWrite $0 "RDP_SPAN_MONITORS=false$\r$\nSIMULATION_MODE=false$\r$\n"
+    FileWrite $0 "RDP_GATEWAY_CREDENTIAL_SOURCE=0$\r$\nRDP_PROMPT_CREDENTIAL_ONCE=false$\r$\n"
+    FileWrite $0 "RDP_PROMPT_FOR_CREDENTIALS_ON_CLIENT=true$\r$\nRDP_USE_MULTIMON=true$\r$\n"
+    FileWrite $0 "RDP_SPAN_MONITORS=true$\r$\nSIMULATION_MODE=false$\r$\n"
     FileClose $0
 
     ; 2. PowerShell lee el archivo (Get-Content detecta la codificación correcta) y lo pasa a UTF-8 puro

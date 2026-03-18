@@ -33,7 +33,7 @@ param (
     [string]$InstallerType = "nsis",
 
     [Parameter(Mandatory = $false)]
-    [string]$AppVersion = "1.0.0"
+    [string]$AppVersion = "1.0.2"
 )
 
 # ---------------------------------------------------------------------
@@ -43,6 +43,28 @@ $ErrorActionPreference = "Stop"
 $InformationPreference = "Continue"
 
 $ProjectRoot = $PSScriptRoot
+
+# Single source-of-truth: VERSION file at repository root.
+# Behavior:
+# - If user passes -AppVersion, persist it to VERSION so edits only required in one place.
+# - If user does NOT pass -AppVersion, read VERSION (if present) and use it.
+$VersionFile = Join-Path -Path $ProjectRoot -ChildPath "VERSION"
+if ($PSBoundParameters.ContainsKey('AppVersion')) {
+    try {
+        Set-Content -Path $VersionFile -Value $AppVersion -Encoding UTF8
+    } catch {
+        New-Item -Path $VersionFile -ItemType File -Force | Out-Null
+        Set-Content -Path $VersionFile -Value $AppVersion -Encoding UTF8
+    }
+} else {
+    if (Test-Path -Path $VersionFile) {
+        $fileVersion = (Get-Content -Path $VersionFile -Raw -ErrorAction SilentlyContinue).Trim()
+        if ($fileVersion) { $AppVersion = $fileVersion } else { Set-Content -Path $VersionFile -Value $AppVersion -Encoding UTF8 }
+    } else {
+        Set-Content -Path $VersionFile -Value $AppVersion -Encoding UTF8
+    }
+}
+
 $Timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm"
 $ReleasesDir = Join-Path -Path $ProjectRoot -ChildPath "releases"
 $ReleaseDir = Join-Path -Path $ProjectRoot -ChildPath "Release"
@@ -221,7 +243,7 @@ function New-InstallerPackage {
         $IssFile = Join-Path -Path $ProjectRoot -ChildPath "installer.iss"
         $InstallerArgs = @(
             "/O`"$ReleasesDir`"",
-            "/F`"RDWeb-Portal-Installer-Inno-$Timestamp`"",
+            "/F`"RDWeb-Portal-Installer-Inno-$Version`"",
             "/DMyAppVersion=`"$Version`"",
             "/DBackendType=`"$BackType`"",
             "/DSrcBackend=`"$ReleaseDir\backend`"",
@@ -234,7 +256,7 @@ function New-InstallerPackage {
         # Eliminado el "&" problemático. Solo pasamos la ruta entre comillas.
         Invoke-ExternalCommand -Command "`"$Compiler`"" -Arguments ($InstallerArgs -join " ") -ErrorMessage "Falló la compilación de Inno Setup."
         
-        return Join-Path -Path $ReleasesDir -ChildPath "RDWeb-Portal-Installer-Inno-$Timestamp.exe"
+        return Join-Path -Path $ReleasesDir -ChildPath "RDWeb-Portal-Installer-Inno-$Version.exe"
     } 
     else {
         $nsisPaths = @(
@@ -250,7 +272,7 @@ function New-InstallerPackage {
         $NsiFileTemp   = Join-Path -Path $ReleaseDir -ChildPath "installer.nsi"
         Copy-Item -Path $NsiFileSource -Destination $NsiFileTemp -Force
         
-        $ExeFile = Join-Path -Path $ReleasesDir -ChildPath "RDWeb-Portal-Installer-NSIS-$Timestamp.exe"
+        $ExeFile = Join-Path -Path $ReleasesDir -ChildPath "RDWeb-Portal-Installer-$Version.exe"
         
         Set-Location -Path $ReleaseDir
         $InstallerArgs = @(

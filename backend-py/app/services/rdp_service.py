@@ -28,7 +28,7 @@ def generate_remote_app_rdp(app: AppResource, user: UserPayload, is_private: boo
     lines: list[str] = [
         "redirectclipboard:i:1",
         "redirectprinters:i:1",
-        "redirectcomports:i:1",
+        "redirectcomports:i:0",
         "redirectsmartcards:i:1",
         "devicestoredirect:s:*",
         "drivestoredirect:s:*",
@@ -41,13 +41,14 @@ def generate_remote_app_rdp(app: AppResource, user: UserPayload, is_private: boo
         "server port:i:3389",
         "allow font smoothing:i:1",
         f"promptcredentialonce:i:{1 if config.RDP_PROMPT_CREDENTIAL_ONCE else 0}",
-        "gatewayusagemethod:i:1",
+        "videoplaybackmode:i:1",
+        "audiocapturemode:i:1",
+        "gatewayusagemethod:i:0",
         "gatewayprofileusagemethod:i:1",
         f"gatewaycredentialssource:i:{config.RDP_GATEWAY_CREDENTIAL_SOURCE}",
         f"full address:s:{full_address}",
         f"alternate shell:s:{app.rdpPath}",
         f"remoteapplicationprogram:s:{app.rdpPath}",
-        f"gatewayhostname:s:{full_address}",
         f"remoteapplicationname:s:{app.name}",
         "remoteapplicationcmdline:s:",
         f"workspace id:s:{full_address}",
@@ -57,9 +58,7 @@ def generate_remote_app_rdp(app: AppResource, user: UserPayload, is_private: boo
     if collection_name:
         lines.append(f"loadbalanceinfo:s:tsv://MS Terminal Services Plugin.1.{collection_name}")
 
-    lines.append(f"alternate full address:s:{full_address}")
-
-    return "\r\n".join(lines)
+    return "\r\n".join(lines) + "\r\n"
 
 
 def generate_desktop_rdp(desktop: AppResource, user: UserPayload) -> str:
