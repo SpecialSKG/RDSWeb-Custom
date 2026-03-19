@@ -390,8 +390,9 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
     ; Envolvemos los valores en comillas por seguridad
     FileWrite $0 "PORT=3000$\r$\nNODE_ENV=production$\r$\nJWT_SECRET=$\"$1$\"$\r$\nJWT_EXPIRES_IN=1h$\r$\n$\r$\n"
     FileWrite $0 "LDAP_URL=$\"$ValAdLdap$\"$\r$\nLDAP_BASE_DN=$\"$ValAdBaseDn$\"$\r$\nAD_DOMAIN=$\"$ValAdDomain$\"$\r$\n"
-    FileWrite $0 "AD_SERVICE_USER=$\"$ValAdUser$\"$\r$\nAD_SERVICE_PASS=$\"$ValAdPass$\"$\r$\nRDCB_SERVER=$\"$ValSrvRdcb$\"$\r$\n$\r$\n"
-    FileWrite $0 "RDP_GATEWAY_CREDENTIAL_SOURCE=0$\r$\nRDP_PROMPT_CREDENTIAL_ONCE=false$\r$\n"
+    FileWrite $0 "AD_SERVICE_USER=$\"$ValAdUser$\"$\r$\nAD_SERVICE_PASS=$\"$ValAdPass$\"$\r$\nRDCB_SERVER=$\"$ValSrvRdcb$\"$\r$\n"
+    FileWrite $0 "CERT_THUMBPRINT=$\"$ValCertThumbprint$\"$\r$\n$\r$\n"
+    FileWrite $0 "RDP_GATEWAY_CREDENTIAL_SOURCE=0$\r$\nRDP_PROMPT_CREDENTIAL_ONCE=true$\r$\n"
     FileWrite $0 "RDP_PROMPT_FOR_CREDENTIALS_ON_CLIENT=true$\r$\nRDP_USE_MULTIMON=true$\r$\n"
     FileWrite $0 "RDP_SPAN_MONITORS=true$\r$\nSIMULATION_MODE=false$\r$\n"
     FileClose $0

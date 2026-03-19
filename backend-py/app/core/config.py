@@ -75,3 +75,6 @@ RDP_SPAN_MONITORS: bool = os.getenv("RDP_SPAN_MONITORS", "false").lower() == "tr
 
 # Simulación
 SIMULATION_MODE: bool = os.getenv("SIMULATION_MODE", "false").lower() == "true"
+
+# Certificado para firmar RDP (thumbprint). Se inyecta en .env por el instalador.
+CERT_THUMBPRINT: str = os.getenv("CERT_THUMBPRINT", "").strip()

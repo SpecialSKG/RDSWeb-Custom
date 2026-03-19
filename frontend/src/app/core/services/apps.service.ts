@@ -1,6 +1,6 @@
-import { inject, Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../environments/environment';
+import { inject, Injectable } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { environment } from "../../../environments/environment";
 
 export interface RemoteApp {
   alias: string;
@@ -17,7 +17,7 @@ export interface AppResponse {
   desktops: RemoteApp[];
 }
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class AppsService {
   private readonly http = inject(HttpClient);
 
@@ -30,12 +30,25 @@ export class AppsService {
   }
 
   launchApp(alias: string): void {
-    // Crear link temporal y hacer click para descarga del .rdp
-    const a = document.createElement('a');
-    a.href = this.getLaunchUrl(alias);
-    a.download = `${alias}.rdp`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    // 1. Usar HTTP Client con responseType 'blob' para incluir el Token JWT
+    this.http.get(this.getLaunchUrl(alias), { responseType: "blob" }).subscribe({
+      next: (blob: Blob) => {
+        // 2. Crear una URL local temporal para el archivo binario
+        const url = globalThis.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${alias}.rdp`;
+        document.body.appendChild(a);
+        a.click();
+
+        // 3. Limpieza
+        a.remove();
+        globalThis.URL.revokeObjectURL(url);
+      },
+      error: (err) => {
+        console.error("Error al descargar el archivo RDP:", err);
+        // Aquí puedes mostrar un mensaje de error en la UI
+      },
+    });
   }
 }

@@ -7,9 +7,15 @@ Replica exactamente rdpService.js: genera RemoteApp y Desktop RDP files.
 from __future__ import annotations
 
 import re
+import subprocess
+import tempfile
+import os
+import logging
 
 from app.core import config
 from app.models.schemas import AppResource, UserPayload
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_collection_name(collection_name: str) -> str:
@@ -19,7 +25,56 @@ def _normalize_collection_name(collection_name: str) -> str:
     return name.upper()
 
 
-def generate_remote_app_rdp(app: AppResource, user: UserPayload, is_private: bool = True) -> str:
+def sign_rdp_content(rdp_content: str) -> bytes:
+    """Firma el contenido RDP usando rdpsign.exe y el thumbprint configurado.
+
+    Devuelve `bytes` con la representación UTF-16LE (con BOM) del .rdp firmado
+    o del original si no hay thumbprint o si la firma falla.
+    """
+    thumbprint = getattr(config, "CERT_THUMBPRINT", None)
+
+    # Preparar bytes del contenido en UTF-16LE con BOM
+    original_bytes = b"\xff\xfe" + rdp_content.encode("utf-16le")
+
+    if not thumbprint:
+        return original_bytes
+
+    temp_path = None
+    try:
+        tmp = tempfile.NamedTemporaryFile(suffix=".rdp", delete=False)
+        temp_path = tmp.name
+        tmp.close()
+
+        # Escribir bytes (con BOM) para que rdpsign procese correctamente
+        with open(temp_path, "wb") as f:
+            f.write(original_bytes)
+
+        # Ejecutar rdpsign (evitar shell=True para seguridad)
+        cmd = ["rdpsign.exe", "/sha256", thumbprint, temp_path]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            logger.error("rdpsign.exe falló: %s", result.stderr.strip())
+            return original_bytes
+
+        # Leer y devolver archivo firmado en binario
+        with open(temp_path, "rb") as f:
+            return f.read()
+
+    except Exception as exc:  # pragma: no cover - environment-dependent
+        logger.exception("Error firmando RDP: %s", exc)
+        return original_bytes
+    finally:
+        if temp_path:
+            try:
+                os.remove(temp_path)
+            except FileNotFoundError:
+                pass
+            except Exception:
+                logger.debug("No se pudo eliminar temporal: %s", temp_path, exc_info=True)
+
+
+def generate_remote_app_rdp(app: AppResource, user: UserPayload, is_private: bool = True) -> bytes:
     domain = user.domain or config.AD_DOMAIN
     session_timeout = 240 if is_private else 20  # noqa: F841 — kept for parity
     full_address = app.remoteServer or config.RDCB_SERVER
@@ -28,7 +83,7 @@ def generate_remote_app_rdp(app: AppResource, user: UserPayload, is_private: boo
     lines: list[str] = [
         "redirectclipboard:i:1",
         "redirectprinters:i:1",
-        "redirectcomports:i:0",
+        "redirectcomports:i:1",
         "redirectsmartcards:i:1",
         "devicestoredirect:s:*",
         "drivestoredirect:s:*",
@@ -41,14 +96,13 @@ def generate_remote_app_rdp(app: AppResource, user: UserPayload, is_private: boo
         "server port:i:3389",
         "allow font smoothing:i:1",
         f"promptcredentialonce:i:{1 if config.RDP_PROMPT_CREDENTIAL_ONCE else 0}",
-        "videoplaybackmode:i:1",
-        "audiocapturemode:i:1",
-        "gatewayusagemethod:i:0",
+        "gatewayusagemethod:i:1",
         "gatewayprofileusagemethod:i:1",
         f"gatewaycredentialssource:i:{config.RDP_GATEWAY_CREDENTIAL_SOURCE}",
         f"full address:s:{full_address}",
         f"alternate shell:s:{app.rdpPath}",
         f"remoteapplicationprogram:s:{app.rdpPath}",
+        f"gatewayhostname:s:{full_address}",
         f"remoteapplicationname:s:{app.name}",
         "remoteapplicationcmdline:s:",
         f"workspace id:s:{full_address}",
@@ -58,10 +112,11 @@ def generate_remote_app_rdp(app: AppResource, user: UserPayload, is_private: boo
     if collection_name:
         lines.append(f"loadbalanceinfo:s:tsv://MS Terminal Services Plugin.1.{collection_name}")
 
-    return "\r\n".join(lines) + "\r\n"
+    content = "\r\n".join(lines) + "\r\n"
+    return sign_rdp_content(content)
 
 
-def generate_desktop_rdp(desktop: AppResource, user: UserPayload) -> str:
+def generate_desktop_rdp(desktop: AppResource, user: UserPayload) -> bytes:
     domain = user.domain or config.AD_DOMAIN
     username = f"{domain}\\{user.username}"
     full_address = desktop.remoteServer or config.RDCB_SERVER
@@ -87,4 +142,5 @@ def generate_desktop_rdp(desktop: AppResource, user: UserPayload) -> str:
         "autoreconnection enabled:i:1",
     ]
 
-    return "\r\n".join(lines)
+    content = "\r\n".join(lines) + "\r\n"
+    return sign_rdp_content(content)

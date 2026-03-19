@@ -720,7 +720,7 @@ end;
 
 procedure WriteEnvFile;
 var
-  EnvPath, JwtSecret, Content: String;
+  EnvPath, JwtSecret, Content, SelectedThumb: String;
   ExistingContent: AnsiString;
 begin
   EnvPath := ExpandConstant('{app}\backend\.env');
@@ -738,6 +738,11 @@ begin
   end;
   if JwtSecret = '' then
     JwtSecret := GenerateRandomHex(64);
+
+  { Obtener thumbprint seleccionado (si existe) }
+  SelectedThumb := '';
+  if (CertCount > 0) and (CertCombo.ItemIndex >= 0) then
+    SelectedThumb := CertThumbprints[CertCombo.ItemIndex];
 
   Content :=
     '# ============================================================' + #13#10 +
@@ -762,6 +767,8 @@ begin
     'AD_SERVICE_PASS=' + ADPage.Values[4] + #13#10 + #13#10 +
     '# --- RD Connection Broker ---' + #13#10 +
     'RDCB_SERVER=' + ServersPage.Values[0] + #13#10 + #13#10 +
+    '# --- SSL Certificate ---' + #13#10 +
+    'CERT_THUMBPRINT=' + SelectedThumb + #13#10 + #13#10 +
     '# --- RDP ---' + #13#10 +
     'RDP_GATEWAY_CREDENTIAL_SOURCE=0' + #13#10 +
     'RDP_PROMPT_CREDENTIAL_ONCE=true' + #13#10 +
