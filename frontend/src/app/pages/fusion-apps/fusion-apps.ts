@@ -29,7 +29,7 @@ export class FusionAppsComponent implements OnInit {
   private readonly appsService = inject(AppsService);
   private readonly router = inject(Router);
 
-  private readonly iconColors: readonly string[] = [
+  private readonly iconColors: string[] = [
     "linear-gradient(180deg, #2b6dd8, #1f4ea3)",
     "linear-gradient(180deg, #1f8d58, #16663f)",
     "linear-gradient(180deg, #d96a37, #ac4a1f)",

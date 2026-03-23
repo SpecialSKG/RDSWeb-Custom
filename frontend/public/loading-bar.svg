@@ -1,28 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 180 60" role="img" aria-label="Three animated stars">
-  <!-- Fondo transparente; contenedor imaginario centrado -->
-  <g transform="translate(90 30) scale(2)">
-    <!-- Estrella 1 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="42" viewBox="-72 -28 144 42" role="img" aria-label="Tres estrellas gorditas y puntiagudas animadas">
+  <g transform="scale(2)">
     <g transform="translate(-28 0)">
-      <path fill="#fff" d="M0,-6.5 L1.6,-2.0 L6.2,-2.0 L2.4,0.6 L3.9,5.1 L0,2.2 L-3.9,5.1 L-2.4,0.6 L-6.2,-2.0 L-1.6,-2.0 Z">
+      <path fill="#fff" d="M0,-7.5 L2.35,-3.24 L7.13,-2.32 L3.8,1.24 L4.41,6.07 L0,4 L-4.41,6.07 L-3.8,1.24 L-7.13,-2.32 L-2.35,-3.24 Z">
         <animateTransform attributeName="transform" type="translate"
           values="0 0; 0 -6; 0 0" dur="0.9s" repeatCount="indefinite" />
       </path>
     </g>
 
-    <!-- Estrella 2 -->
     <g transform="translate(0 0)">
-      <path fill="#fff" d="M0,-6.5 L1.6,-2.0 L6.2,-2.0 L2.4,0.6 L3.9,5.1 L0,2.2 L-3.9,5.1 L-2.4,0.6 L-6.2,-2.0 L-1.6,-2.0 Z">
+      <path fill="#fff" d="M0,-7.5 L2.35,-3.24 L7.13,-2.32 L3.8,1.24 L4.41,6.07 L0,4 L-4.41,6.07 L-3.8,1.24 L-7.13,-2.32 L-2.35,-3.24 Z">
         <animateTransform attributeName="transform" type="translate"
           values="0 0; 0 -6; 0 0" dur="0.9s" begin="0.15s" repeatCount="indefinite" />
       </path>
     </g>
 
-    <!-- Estrella 3 -->
     <g transform="translate(28 0)">
-      <path fill="#fff" d="M0,-6.5 L1.6,-2.0 L6.2,-2.0 L2.4,0.6 L3.9,5.1 L0,2.2 L-3.9,5.1 L-2.4,0.6 L-6.2,-2.0 L-1.6,-2.0 Z">
+      <path fill="#fff" d="M0,-7.5 L2.35,-3.24 L7.13,-2.32 L3.8,1.24 L4.41,6.07 L0,4 L-4.41,6.07 L-3.8,1.24 L-7.13,-2.32 L-2.35,-3.24 Z">
         <animateTransform attributeName="transform" type="translate"
           values="0 0; 0 -6; 0 0" dur="0.9s" begin="0.3s" repeatCount="indefinite" />
       </path>
     </g>
   </g>
-</svg> 
+</svg>

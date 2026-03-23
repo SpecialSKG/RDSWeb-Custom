@@ -1,52 +1,39 @@
-// Include theming for Angular Material with `mat.theme()`.
-// This Sass mixin will define CSS variables that are used for styling Angular Material
-// components according to the Material 3 design spec.
-// Learn more about theming and how to use it for your application's
-// custom components at https://material.angular.dev/guide/theming
-@use "@angular/material" as mat;
-@use "theme-colors" as custom-theme;
+@use "@fontsource-variable/inter";
+
+$color-bg-radial-1: rgba(70, 96, 152, 0.26);
+$color-bg-radial-2: rgba(40, 56, 96, 0.3);
+$color-bg-linear-start: #131a28;
+$color-bg-linear-end: #09101a;
 
 html {
   height: 100%;
-  @include mat.theme(
-    (
-      color: (
-        primary: custom-theme.$primary-palette,
-        tertiary: custom-theme.$tertiary-palette,
-      ),
-      typography: Roboto,
-      density: 0,
-    )
-  );
 }
 
 body {
-  // Default the application to a light color theme. This can be changed to
-  // `dark` to enable the dark color theme, or to `light dark` to defer to the
-  // user's system settings.
   color-scheme: light;
 
-  // Set a default background, font and text colors for the application using
-  // Angular Material's system-level CSS variables. Learn more about these
-  // variables at https://material.angular.dev/guide/system-variables
-  background-color: #555f71;
-  color: var(--mat-sys-on-surface);
-  font: var(--mat-sys-body-medium);
+  background:
+    radial-gradient(circle at 14% 18%, $color-bg-radial-1, transparent 24%),
+    radial-gradient(circle at 88% 78%, $color-bg-radial-2, transparent 22%),
+    linear-gradient(180deg, $color-bg-linear-start, $color-bg-linear-end);
 
-  // Reset the user agent margin.
+  font-family: "Inter Variable", sans-serif;
+  font-weight: 400;
+
   margin: 0;
   height: 100%;
 }
 
-body.dark-theme {
-  color-scheme: dark;
+.fade-in {
+  animation: fadeIn 0.8s ease-out forwards;
+  animation-delay: calc(var(--delay-index) * 0.1s);
 }
 
-:root {
-  @include mat.toolbar-overrides(
-    (
-      container-background-color: var(--mat-sys-surface-container-low),
-      container-text-color: var(--mat-toolbar-container-text-color),
-    )
-  );
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

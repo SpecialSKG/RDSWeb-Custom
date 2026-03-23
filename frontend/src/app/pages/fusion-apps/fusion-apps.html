@@ -1,9 +1,9 @@
 <div class="bg-glow bg-glow--one"></div>
 <div class="bg-glow bg-glow--two"></div>
-<div class="bg-grid" aria-hidden="true"></div>
+<div class="bg-grid"></div>
 
 <main class="page apps-page">
-  <section class="apps-shell" aria-label="Aplicaciones disponibles">
+  <section class="apps-shell">
     <aside class="apps-sidebar">
       <div class="apps-sidebar__inner">
         <div class="apps-sidebar__hero">
@@ -16,7 +16,7 @@
             <label class="apps-search" for="appsSearch">
               <span class="apps-search__label">Buscar aplicación</span>
               <span class="apps-search__control">
-                <svg viewBox="0 0 24 24" aria-hidden="true" class="apps-search__icon">
+                <svg viewBox="0 0 24 24" class="apps-search__icon">
                   <path
                     d="M10.5 4a6.5 6.5 0 1 0 4.061 11.574l4.433 4.433 1.414-1.414-4.433-4.433A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"
                     fill="currentColor"
@@ -50,13 +50,8 @@
             <p class="apps-main__eyebrow">Portal institucional</p>
             <h2>Tus aplicaciones</h2>
           </div>
-          <button
-            class="apps-main__logout"
-            type="button"
-            (click)="logout()"
-            aria-label="Cerrar sesión y volver al login"
-          >
-            <span class="button-icon" aria-hidden="true">&#8592;</span>
+          <button class="apps-main__logout" type="button" (click)="logout()">
+            <span class="button-icon">&#8592;</span>
             <span>Cerrar sesión</span>
           </button>
         </header>
@@ -66,14 +61,27 @@
             <div class="apps-loading">Cargando aplicaciones...</div>
           } @else {
             @for (group of filteredGroups(); track group.name) {
-              <section class="apps-category">
+              <section
+                class="apps-category"
+                animate.enter="fade-in"
+                [style.--delay-index]="$index * group.apps.length"
+              >
                 <h3 class="apps-category__title">{{ group.name }}</h3>
                 <div class="apps-grid">
                   @for (app of group.apps; track app.alias) {
-                    <button class="app-card" type="button" (click)="launch(app)">
+                    <button
+                      class="app-card"
+                      animate.enter="fade-in"
+                      [style.--delay-index]="$index"
+                      (click)="launch(app)"
+                    >
                       @if (getIconUrl(app)) {
                         <span class="app-card__img">
-                          <img [src]="getIconUrl(app)" [alt]="app.name + ' icon'" (error)="onIconError(app)" />
+                          <img
+                            [src]="getIconUrl(app)"
+                            [alt]="app.name + ' icon'"
+                            (error)="onIconError(app)"
+                          />
                         </span>
                       } @else {
                         <span class="app-card__icon" [style.background]="getIconColor(app.name)">
@@ -90,7 +98,7 @@
             }
 
             @if (launchNote()) {
-              <output class="apps-launch-note is-active" aria-live="polite">
+              <output class="apps-launch-note is-active">
                 {{ launchNote() }}
               </output>
             }
