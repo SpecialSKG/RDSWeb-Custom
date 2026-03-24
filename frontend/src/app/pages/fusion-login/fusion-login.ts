@@ -23,10 +23,6 @@ export class FusionLoginComponent {
   loading = signal(false);
   errorMessage = signal("");
 
-  togglePassword(): void {
-    this.hidePassword.update((v) => !v);
-  }
-
   onSubmit(): void {
     if (this.loginForm.invalid) {
       this.loginForm.markAllAsTouched();

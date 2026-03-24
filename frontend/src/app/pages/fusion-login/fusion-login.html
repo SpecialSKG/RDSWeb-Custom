@@ -30,7 +30,11 @@
               placeholder="Ingrese su contraseña"
               autocomplete="off"
             />
-            <button class="toggle-password" type="button" (click)="togglePassword()">
+            <button
+              class="toggle-password"
+              type="button"
+              (click)="hidePassword.update(value => !value)"
+            >
               @if (hidePassword()) {
                 <svg class="icon-eye" viewBox="0 0 24 24">
                   <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
@@ -71,7 +75,7 @@
     </section>
   </main>
 } @placeholder (minimum 500ms) {
-  <div class="preloader" >
+  <div class="preloader">
     <img src="loading-bar.svg" alt="Cargando" />
   </div>
 }

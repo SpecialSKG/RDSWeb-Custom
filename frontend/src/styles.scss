@@ -25,8 +25,9 @@ body {
 }
 
 .fade-in {
+  opacity: 0; // Estado inicial invisible
   animation: fadeIn 0.8s ease-out forwards;
-  animation-delay: calc(var(--delay-index) * 0.1s);
+  animation-delay: calc(var(--delay-time) * 0.05s);
 }
 
 @keyframes fadeIn {

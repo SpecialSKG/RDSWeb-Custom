@@ -50,7 +50,7 @@ export class LoginComponent {
     this.loading.set(true);
     this.authService.login(this.loginForm.value).subscribe({
       next: () => {
-        this.router.navigate(["dashboard"]);
+        this.router.navigate(["apps-legacy"]);
       },
       error: (err) => {
         this.loginForm.markAllAsTouched();

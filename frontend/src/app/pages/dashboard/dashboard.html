@@ -28,15 +28,22 @@
       @defer (when !isLoading()) {
         <mat-nav-list>
           <mat-divider></mat-divider>
-          @for (group of filteredGroups(); track group.name) {
-            <div mat-subheader>{{ group.name }} ({{ group.apps.length }})</div>
-            @for (app of group.apps; track app.alias) {
-              <a mat-list-item (click)="launch(app.alias)" (keydown.enter)="launch(app.alias)">
-                <mat-icon matListItemIcon>description</mat-icon>
-                <div matListItemTitle>{{ app.name }} - {{ app.remoteServer }}</div>
-              </a>
-            }
-            <mat-divider></mat-divider>
+          @for (group of filteredGroups(); track group.name; let i = $index) {
+            <div mat-subheader animate.enter="fade-in" [style.--delay-time]="getGlobalIndex(i, -1)">
+              {{ group.name }} ({{ group.apps.length }})
+              @for (app of group.apps; track app.alias; let j = $index) {
+                <a
+                  mat-list-item
+                  animate.enter="fade-in"
+                  [style.--delay-time]="getGlobalIndex(i, j)"
+                  (click)="launch(app.alias)"
+                >
+                  <mat-icon matListItemIcon>description</mat-icon>
+                  <div matListItemTitle>{{ app.name }} - {{ app.remoteServer }}</div>
+                </a>
+              }
+              <mat-divider></mat-divider>
+            </div>
           } @empty {
             <div class="centered">
               @if (isLoading()) {

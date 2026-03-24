@@ -11,6 +11,7 @@ import { FormsModule } from "@angular/forms";
 import { Router } from "@angular/router";
 import { AuthService } from "../../core/services/auth.service";
 import { AppsService, RemoteApp } from "../../core/services/apps.service";
+import { httpResource } from "@angular/common/http";
 
 interface AppGroup {
   name: string;
@@ -46,7 +47,6 @@ export class FusionAppsComponent implements OnInit {
   searchQuery = model("");
   allGroups = signal<AppGroup[]>([]);
   isLoading = signal(false);
-  launchNote = signal("");
   brokenIcons = signal(new Set<string>());
 
   filteredGroups = computed(() => {
@@ -90,14 +90,34 @@ export class FusionAppsComponent implements OnInit {
   }
 
   launch(app: RemoteApp): void {
-    this.launchNote.set(`Iniciando ${app.name} en sesión remota...`);
-    this.appsService.launchApp(app.alias);
+    this.isLoading.set(true);
+    this.appsService.launchApp(app.alias).subscribe({
+      next: (blob: Blob) => {
+        const url = globalThis.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${app.alias}.rdp`;
+        document.body.appendChild(a);
+        a.click();
+
+        // 3. Limpieza
+        a.remove();
+        globalThis.URL.revokeObjectURL(url);
+        this.isLoading.set(false);
+      },
+      error: (err) => {
+        console.error("Error al descargar el archivo RDP:", err);
+        this.isLoading.set(false);
+      },
+    });
   }
 
   logout(): void {
+    this.isLoading.set(true);
     this.auth.logout().subscribe({
       next: () => {
         this.router.navigate(["/login"]);
+        this.isLoading.set(false);
       },
     });
   }
@@ -116,12 +136,23 @@ export class FusionAppsComponent implements OnInit {
 
   getIconUrl(app: RemoteApp): string | null {
     if (app.alias && !this.brokenIcons().has(app.alias)) {
-      return app.alias + ".png";
+      return "/icons/" + app.alias + ".png";
     }
     return null;
   }
 
   onIconError(app: RemoteApp): void {
     this.brokenIcons.update((set) => new Set(set).add(app.alias));
+  }
+
+  getGlobalIndex(groupIndex: number, appIndex: number): number {
+    let totalPrev = 0;
+    const groups = this.filteredGroups();
+
+    for (let i = 0; i < groupIndex; i++) {
+      totalPrev += groups[i].apps.length + 1;
+    }
+
+    return totalPrev + appIndex + 1;
   }
 }

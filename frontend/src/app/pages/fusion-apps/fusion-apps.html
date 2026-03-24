@@ -1,110 +1,95 @@
-<div class="bg-glow bg-glow--one"></div>
-<div class="bg-glow bg-glow--two"></div>
-<div class="bg-grid"></div>
-
-<main class="page apps-page">
-  <section class="apps-shell">
-    <aside class="apps-sidebar">
-      <div class="apps-sidebar__inner">
-        <div class="apps-sidebar__hero">
-          <h1>Aplicaciones remotas</h1>
-          <p>Selecciona una aplicación disponible para iniciar una sesión remota.</p>
+@defer {
+  <main class="card" animate.enter="fade-in" [class.loading]="isLoading()">
+    <section class="panel-left">
+      <header class="hero-title">
+        <h1>Aplicaciones remotas</h1>
+        <p>Selecciona una aplicación disponible para iniciar una sesión remota.</p>
+      </header>
+      <div class="field">
+        <label for="search">Buscar aplicación</label>
+        <div class="field-area">
+          <input
+            id="search"
+            type="search"
+            placeholder="Buscar por nombre"
+            autocomplete="off"
+            [(ngModel)]="searchQuery"
+          />
+          <svg viewBox="0 0 24 24" class="icon">
+            <path
+              d="M10.5 4a6.5 6.5 0 1 0 4.061 11.574l4.433 4.433 1.414-1.414-4.433-4.433A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"
+              fill="currentColor"
+            />
+          </svg>
         </div>
-
-        <div class="apps-sidebar__hero">
-          <div class="apps-main__toolbar">
-            <label class="apps-search" for="appsSearch">
-              <span class="apps-search__label">Buscar aplicación</span>
-              <span class="apps-search__control">
-                <svg viewBox="0 0 24 24" class="apps-search__icon">
-                  <path
-                    d="M10.5 4a6.5 6.5 0 1 0 4.061 11.574l4.433 4.433 1.414-1.414-4.433-4.433A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"
-                    fill="currentColor"
-                  />
-                </svg>
-                <input
-                  id="appsSearch"
-                  type="search"
-                  placeholder="Buscar por nombre"
-                  autocomplete="off"
-                  [(ngModel)]="searchQuery"
-                />
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <footer class="apps-sidebar__footer">
-          <div class="apps-sidebar__hero">
-            <p>Usuario: {{ user()?.displayName || user()?.username || "N/A" }}</p>
-          </div>
-          <strong>DINAFI-USC</strong>
-        </footer>
       </div>
-    </aside>
 
-    <section class="apps-main">
-      <div class="apps-main__inner">
-        <header class="apps-main__header">
-          <div>
-            <p class="apps-main__eyebrow">Portal institucional</p>
-            <h2>Tus aplicaciones</h2>
-          </div>
-          <button class="apps-main__logout" type="button" (click)="logout()">
-            <span class="button-icon">&#8592;</span>
-            <span>Cerrar sesión</span>
-          </button>
-        </header>
+      <footer class="support">
+        <p>Usuario: {{ user()?.displayName || user()?.username || "N/A" }}</p>
+        <strong>DINAFI-USC</strong>
+      </footer>
+    </section>
 
-        <div class="apps-main__scroll">
-          @if (isLoading()) {
-            <div class="apps-loading">Cargando aplicaciones...</div>
-          } @else {
-            @for (group of filteredGroups(); track group.name) {
-              <section
-                class="apps-category"
-                animate.enter="fade-in"
-                [style.--delay-index]="$index * group.apps.length"
-              >
-                <h3 class="apps-category__title">{{ group.name }}</h3>
-                <div class="apps-grid">
-                  @for (app of group.apps; track app.alias) {
-                    <button
-                      class="app-card"
-                      animate.enter="fade-in"
-                      [style.--delay-index]="$index"
-                      (click)="launch(app)"
-                    >
-                      @if (getIconUrl(app)) {
-                        <span class="app-card__img">
-                          <img
-                            [src]="getIconUrl(app)"
-                            [alt]="app.name + ' icon'"
-                            (error)="onIconError(app)"
-                          />
-                        </span>
-                      } @else {
-                        <span class="app-card__icon" [style.background]="getIconColor(app.name)">
-                          {{ getInitial(app.name) }}
-                        </span>
-                      }
-                      <span class="app-card__name">{{ app.name }}</span>
-                    </button>
-                  }
-                </div>
-              </section>
-            } @empty {
-              <div class="apps-empty">No se encontraron aplicaciones.</div>
-            }
-
-            @if (launchNote()) {
-              <output class="apps-launch-note is-active">
-                {{ launchNote() }}
-              </output>
-            }
-          }
+    <section class="panel-right">
+      <header class="navbar">
+        <div class="portal-header">
+          <p>Portal institucional</p>
+          <h2>Tus aplicaciones</h2>
         </div>
+        <button class="logout" (click)="logout()">
+          <span class="button-icon">&#8592;</span>
+          <span>Cerrar sesión</span>
+        </button>
+      </header>
+
+      <div class="apps">
+        @for (group of filteredGroups(); track group.name; let i = $index) {
+          <section
+            class="category"
+            animate.enter="fade-in"
+            [style.--delay-time]="getGlobalIndex(i, -1)"
+          >
+            <h3>{{ group.name }}</h3>
+            <div class="list">
+              @for (app of group.apps; track app.alias; let j = $index) {
+                <button
+                  class="app"
+                  animate.enter="fade-in"
+                  [style.--delay-time]="getGlobalIndex(i, j)"
+                  (click)="launch(app)"
+                >
+                  @if (getIconUrl(app)) {
+                    <span class="app-img">
+                      <img
+                        [src]="getIconUrl(app)"
+                        [alt]="app.name + ' icon'"
+                        (error)="onIconError(app)"
+                      />
+                    </span>
+                  } @else {
+                    <span class="app-icon" [style.background]="getIconColor(app.name)">
+                      {{ getInitial(app.name) }}
+                    </span>
+                  }
+                  <span class="app-name">{{ app.name }}</span>
+                </button>
+              }
+            </div>
+          </section>
+        } @empty {
+          <div class="apps-loading">
+            @if (isLoading()) {
+              Cargando aplicaciones...
+            } @else {
+              No se encontraron aplicaciones disponibles.
+            }
+          </div>
+        }
       </div>
     </section>
-  </section>
-</main>
+  </main>
+} @placeholder (minimum 500ms) {
+  <div class="preloader">
+    <img src="loading-bar.svg" alt="Cargando" />
+  </div>
+}

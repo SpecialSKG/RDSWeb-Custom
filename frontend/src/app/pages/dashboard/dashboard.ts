@@ -59,7 +59,8 @@ export class DashboardComponent implements OnInit {
     const q = this.searchQuery().toLowerCase().trim();
     return this.allGroups()
       .map((g) => ({ ...g, apps: g.apps.filter((a) => a.name.toLowerCase().includes(q)) }))
-      .filter((g) => g.apps.length > 0);
+      .filter((g) => g.apps.length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
   });
 
   isLoading = signal(false);
@@ -101,5 +102,16 @@ export class DashboardComponent implements OnInit {
 
   logout() {
     this.auth.logout().subscribe();
+  }
+
+  getGlobalIndex(groupIndex: number, appIndex: number): number {
+    let totalPrev = 0;
+    const groups = this.filteredGroups();
+
+    for (let i = 0; i < groupIndex; i++) {
+      totalPrev += groups[i].apps.length + 1;
+    }
+
+    return totalPrev + appIndex + 1;
   }
 }
