@@ -1,60 +1,44 @@
 import { Component, inject, signal } from "@angular/core";
-import {
-  FormsModule,
-  NonNullableFormBuilder,
-  ReactiveFormsModule,
-  Validators,
-} from "@angular/forms";
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 import { Router } from "@angular/router";
 import { AuthService } from "../../core/services/auth.service";
-import { MatCardModule } from "@angular/material/card";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatInputModule } from "@angular/material/input";
-import { MatButtonModule } from "@angular/material/button";
-import { MatIconModule } from "@angular/material/icon";
 
 @Component({
   selector: "app-login",
-  imports: [
-    MatCardModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatButtonModule,
-  ],
+  imports: [ReactiveFormsModule],
   templateUrl: "./login.html",
   styleUrl: "./login.scss",
 })
 export class LoginComponent {
-  private readonly authService = inject(AuthService);
+  private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly fb = inject(NonNullableFormBuilder);
 
   loginForm = this.fb.group({
-    username: ["Administrador", [Validators.required]],
-    password: ["Admin1234!", [Validators.required, Validators.minLength(8)]],
+    username: ["administrador", [Validators.required]],
+    password: ["Admin1234!", [Validators.required]],
   });
 
   hidePassword = signal(true);
-
   loading = signal(false);
+  errorMessage = signal("");
 
-  onSubmit() {
+  onSubmit(): void {
     if (this.loginForm.invalid) {
       this.loginForm.markAllAsTouched();
       return;
     }
 
     this.loading.set(true);
-    this.authService.login(this.loginForm.value).subscribe({
+    this.errorMessage.set("");
+
+    this.auth.login(this.loginForm.getRawValue()).subscribe({
       next: () => {
-        this.router.navigate(["apps-legacy"]);
+        this.router.navigate(["/apps"]);
       },
       error: (err) => {
-        this.loginForm.markAllAsTouched();
         this.loading.set(false);
+        this.errorMessage.set(err?.error || "Credenciales incorrectas");
       },
     });
   }

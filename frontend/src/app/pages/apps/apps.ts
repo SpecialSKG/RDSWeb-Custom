@@ -11,7 +11,6 @@ import { FormsModule } from "@angular/forms";
 import { Router } from "@angular/router";
 import { AuthService } from "../../core/services/auth.service";
 import { AppsService, RemoteApp } from "../../core/services/apps.service";
-import { httpResource } from "@angular/common/http";
 
 interface AppGroup {
   name: string;
@@ -19,13 +18,13 @@ interface AppGroup {
 }
 
 @Component({
-  selector: "app-fusion-apps",
+  selector: "app-apps",
   imports: [FormsModule],
-  templateUrl: "./fusion-apps.html",
-  styleUrl: "./fusion-apps.scss",
+  templateUrl: "./apps.html",
+  styleUrl: "./apps.scss",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FusionAppsComponent implements OnInit {
+export class AppsComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly appsService = inject(AppsService);
   private readonly router = inject(Router);

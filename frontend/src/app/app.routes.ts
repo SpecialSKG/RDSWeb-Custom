@@ -1,28 +1,17 @@
 import { Routes } from "@angular/router";
-import { authGuard, guestGuard } from "./core/guards/auth.guard";
+import { authGuard } from "./core/guards/auth.guard";
+import { loginGuard } from "./core/guards/login.guard";
 
 export const routes: Routes = [
   {
-    path: "login-legacy",
-    canActivate: [guestGuard],
-    loadComponent: () => import("./pages/login/login").then((m) => m.LoginComponent),
-  },
-  {
-    path: "apps-legacy",
-    canActivate: [authGuard],
-    loadComponent: () => import("./pages/dashboard/dashboard").then((m) => m.DashboardComponent),
-  },
-  {
     path: "login",
-    canActivate: [guestGuard],
-    loadComponent: () =>
-      import("./pages/fusion-login/fusion-login").then((m) => m.FusionLoginComponent),
+    canActivate: [loginGuard],
+    loadComponent: () => import("./pages/login/login").then((m) => m.LoginComponent),
   },
   {
     path: "apps",
     canActivate: [authGuard],
-    loadComponent: () =>
-      import("./pages/fusion-apps/fusion-apps").then((m) => m.FusionAppsComponent),
+    loadComponent: () => import("./pages/apps/apps").then((m) => m.AppsComponent),
   },
   { path: "**", redirectTo: "apps" },
 ];

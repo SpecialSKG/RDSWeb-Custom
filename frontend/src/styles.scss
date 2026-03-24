@@ -5,6 +5,36 @@ $color-bg-radial-2: rgba(40, 56, 96, 0.3);
 $color-bg-linear-start: #131a28;
 $color-bg-linear-end: #09101a;
 
+$panel-light-start: rgba(247, 247, 249, 0.985);
+$panel-light-end: rgba(241, 243, 247, 0.985);
+$panel-dark-start: #4b5672;
+$panel-dark-mid: #44506c;
+$panel-dark-end: #505b77;
+
+$radius-xl: 28px;
+$radius-md: 16px;
+$shadow-shell: 0 0 55px 15px rgba(255, 255, 255, 0.3);
+$shadow-app: 0 14px 20px rgba(8, 14, 29, 0.35);
+
+:root {
+  /* Colors */
+  --bg-radial-1: #{$color-bg-radial-1};
+  --bg-radial-2: #{$color-bg-radial-2};
+  --bg-linear-start: #{$color-bg-linear-start};
+  --bg-linear-end: #{$color-bg-linear-end};
+
+  --panel-light: linear-gradient(180deg, #{$panel-light-start}, #{$panel-light-end});
+  --panel-dark: linear-gradient(145deg, #{$panel-dark-start}, #{$panel-dark-mid} 48%, #{$panel-dark-end});
+
+  --radius-xl: #{$radius-xl};
+  --radius-md: #{$radius-md};
+
+  --shadow-shell: #{$shadow-shell};
+  --shadow-app: #{$shadow-app};
+
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+}
+
 html {
   height: 100%;
 }
@@ -13,9 +43,9 @@ body {
   color-scheme: light;
 
   background:
-    radial-gradient(circle at 14% 18%, $color-bg-radial-1, transparent 24%),
-    radial-gradient(circle at 88% 78%, $color-bg-radial-2, transparent 22%),
-    linear-gradient(180deg, $color-bg-linear-start, $color-bg-linear-end);
+    radial-gradient(circle at 14% 18%, var(--bg-radial-1), transparent 24%),
+    radial-gradient(circle at 88% 78%, var(--bg-radial-2), transparent 22%),
+    linear-gradient(180deg, var(--bg-linear-start), var(--bg-linear-end));
 
   font-family: "Inter Variable", sans-serif;
   font-weight: 400;
