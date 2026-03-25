@@ -1,9 +1,9 @@
-import { inject, Injectable, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Router } from '@angular/router';
-import { tap, catchError, throwError } from 'rxjs';
-import { environment } from '../../../environments/environment';
-import { AuthRequest } from '../model/auth';
+import { inject, Injectable, signal } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { Router } from "@angular/router";
+import { tap, catchError, throwError } from "rxjs";
+import { environment } from "../../../environments/environment";
+import { AuthRequest } from "../model/auth";
 
 export interface User {
   username: string;
@@ -19,7 +19,7 @@ export interface LoginResponse {
   user: User;
 }
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
@@ -33,7 +33,7 @@ export class AuthService {
   login(body: Partial<AuthRequest>) {
     return this.http.post<LoginResponse>(`${environment.apiUrl}/auth/login`, body).pipe(
       tap((res) => this.user.set(res.user)),
-      catchError((err) => throwError(() => err.error || { error: 'Error de conexión' })),
+      catchError((err) => throwError(() => err.error || { error: "Error de conexión" })),
     );
   }
 
@@ -41,7 +41,7 @@ export class AuthService {
     return this.http.post(`${environment.apiUrl}/auth/logout`, {}).pipe(
       tap(() => {
         this.user.set(null);
-        this.router.navigate(['/login']);
+        this.router.navigate(["/login"]);
       }),
     );
   }

@@ -11,6 +11,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: space-evenly;
 
     width: 30%;
     padding: 36px;
@@ -35,6 +36,46 @@
   }
 }
 
+.logout {
+  min-width: 180px;
+  height: 50px;
+  margin: 24px;
+
+  color: #fff;
+  background: #3b4e71;
+  border: 1px solid rgba(35, 53, 86, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 10px 22px rgba(35, 53, 86, 0.16);
+
+  font-family: "Inter Variable", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    background: #253756;
+    box-shadow: 0 4px 30px rgba(35, 53, 86, 0.55);
+  }
+  &:active {
+    transform: translateY(0px);
+    background: #2a4060;
+    box-shadow: 0 2px 15px rgba(35, 53, 86, 0.35);
+  }
+  &:disabled {
+    background: #3b4e71;
+    border-color: rgba(35, 53, 86, 0.14);
+    box-shadow: 0 10px 22px rgba(35, 53, 86, 0.16);
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
 .navbar {
   display: flex;
   align-items: center;
@@ -49,36 +90,6 @@
       font-weight: 700;
       letter-spacing: -0.055em;
       text-wrap: balance;
-    }
-  }
-
-  .logout {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-
-    min-height: 42px;
-    padding: 0 14px;
-
-    background: linear-gradient(360deg, #444444, #999999);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.13);
-    border-radius: 12px;
-
-    transition:
-      transform 0.18s ease,
-      background-color 0.18s ease,
-      border-color 0.18s ease;
-    &:hover {
-      transform: translateY(-4px);
-      background: linear-gradient(141deg, rgba(255, 255, 255, 0.2), rgba(93, 93, 93, 0.25) 75%);
-      border-color: rgba(255, 255, 255, 0.18);
-    }
-    &:active {
-      transform: translateY(0);
-      background: linear-gradient(141deg, rgba(255, 255, 255, 0.12), rgba(93, 93, 93, 0.2) 75%);
-      border-color: rgba(255, 255, 255, 0.14);
     }
   }
 }

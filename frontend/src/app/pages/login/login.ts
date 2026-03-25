@@ -10,13 +10,13 @@ import { AuthService } from "../../core/services/auth.service";
   styleUrl: "./login.scss",
 })
 export class LoginComponent {
-  private readonly auth = inject(AuthService);
+  private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly fb = inject(NonNullableFormBuilder);
 
   loginForm = this.fb.group({
-    username: ["administrador", [Validators.required]],
-    password: ["Admin1234!", [Validators.required]],
+    username: ["administrador", Validators.required],
+    password: ["Admin1234!", Validators.required],
   });
 
   hidePassword = signal(true);
@@ -30,11 +30,11 @@ export class LoginComponent {
     }
 
     this.loading.set(true);
-    this.errorMessage.set("");
 
-    this.auth.login(this.loginForm.getRawValue()).subscribe({
+    this.authService.login(this.loginForm.value).subscribe({
       next: () => {
         this.router.navigate(["/apps"]);
+        this.loading.set(false);
       },
       error: (err) => {
         this.loading.set(false);

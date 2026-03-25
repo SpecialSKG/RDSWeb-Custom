@@ -25,7 +25,7 @@ interface AppGroup {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppsComponent implements OnInit {
-  private readonly auth = inject(AuthService);
+  private readonly authService = inject(AuthService);
   private readonly appsService = inject(AppsService);
   private readonly router = inject(Router);
 
@@ -42,7 +42,7 @@ export class AppsComponent implements OnInit {
     "linear-gradient(180deg, #d74e4f, #b43c3d)",
   ];
 
-  user = this.auth.getUser();
+  user = this.authService.getUser();
   searchQuery = model("");
   allGroups = signal<AppGroup[]>([]);
   isLoading = signal(false);
@@ -113,7 +113,7 @@ export class AppsComponent implements OnInit {
 
   logout(): void {
     this.isLoading.set(true);
-    this.auth.logout().subscribe({
+    this.authService.logout().subscribe({
       next: () => {
         this.router.navigate(["/login"]);
         this.isLoading.set(false);

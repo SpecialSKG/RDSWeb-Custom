@@ -10,7 +10,6 @@
         <div class="field-area">
           <input
             id="search"
-            type="search"
             placeholder="Buscar por nombre"
             autocomplete="off"
             [(ngModel)]="searchQuery"
@@ -24,6 +23,10 @@
         </div>
       </div>
 
+      <button class="logout" (click)="logout()" [disabled]="isLoading()">
+        <span>Cerrar sesión</span>
+      </button>
+
       <footer class="support">
         <p>Usuario: {{ user()?.displayName || user()?.username || "N/A" }}</p>
         <strong>DINAFI-USC</strong>
@@ -36,10 +39,6 @@
           <p>Portal institucional</p>
           <h2>Tus aplicaciones</h2>
         </div>
-        <button class="logout" (click)="logout()">
-          <span class="button-icon">&#8592;</span>
-          <span>Cerrar sesión</span>
-        </button>
       </header>
 
       <div class="apps">
