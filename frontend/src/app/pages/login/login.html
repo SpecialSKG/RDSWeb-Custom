@@ -22,7 +22,7 @@
 
         <div class="field">
           <label for="password">Contraseña</label>
-          <div class="password-field">
+          <div class="field-area">
             <input
               id="password"
               [type]="hidePassword() ? 'password' : 'text'"
@@ -31,7 +31,7 @@
               autocomplete="off"
             />
             <button
-              class="toggle-password"
+              class="icon"
               type="button"
               (click)="hidePassword.update(value => !value)"
             >
