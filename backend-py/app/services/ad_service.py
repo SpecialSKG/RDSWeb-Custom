@@ -71,13 +71,15 @@ def _parse_username(username: str) -> tuple[str, str]:
 
     Retorna (domain, clean_user).
     """
+    # Soporta formatos: DOMAIN\user, user@domain.tld o usuario simple
     if "\\" in username:
         domain, clean_user = username.split("\\", 1)
         return domain.upper(), clean_user
     if "@" in username:
         clean_user, domain_suffix = username.split("@", 1)
         return domain_suffix.split(".")[0].upper(), clean_user
-    return config.AD_DOMAIN, username
+    # Ya no existe AD_DOMAIN: devolver None para indicar dominio ausente
+    return None, username
 
 
 def _extract_groups(member_of: list[str] | str | None) -> list[str]:
@@ -128,15 +130,23 @@ def authenticate_user(username: str, password: str) -> dict[str, Any]:
 
     # ── MODO REAL — ldap3 ────────────────────────────────────────────
     tls_config = Tls(validate=0)  # en prod: validate=ssl.CERT_REQUIRED + ca_certs
-    server = Server(config.LDAP_URL, use_ssl=config.LDAP_URL.startswith("ldaps"), tls=tls_config, get_info="ALL")
+    # Determinar uso de SSL/TLS en base al puerto (636 clásico para LDAPS)
+    use_ssl = getattr(config, "LDAP_PORT", None) == 636
+    server = Server(
+        config.LDAP_HOST,
+        port=getattr(config, "LDAP_PORT", None),
+        use_ssl=use_ssl,
+        tls=tls_config,
+        get_info="ALL",
+    )
 
     # 1) Bind con cuenta de servicio para buscar el DN del usuario
     try:
         # FIX-A6: receive_timeout evita bloqueos indefinidos si el DC no responde
         svc_conn = Connection(
             server,
-            user=config.AD_SERVICE_USER,
-            password=config.AD_SERVICE_PASS,
+            user=getattr(config, "LDAP_USER_DN", None),
+            password=getattr(config, "LDAP_PASSWORD", None),
             auto_bind=True,
             raise_exceptions=True,
             read_only=True,
@@ -147,9 +157,19 @@ def authenticate_user(username: str, password: str) -> dict[str, Any]:
         raise AuthError("No se pudo conectar al servidor de Active Directory.", "AD_UNREACHABLE") from exc
 
     try:
-        search_filter = f"(sAMAccountName={_ldap_escape(clean_user)})"
+        # Construir filtro y base de búsqueda a partir de la configuración
+        raw_filter = getattr(config, "LDAP_USER_SEARCH_FILTER", "(sAMAccountName={0})")
+        search_filter = raw_filter.format(_ldap_escape(clean_user))
+
+        # Permitir que LDAP_USER_SEARCH_BASE sea relativo al LDAP_BASE_DN
+        user_search_base = getattr(config, "LDAP_USER_SEARCH_BASE", "")
+        if user_search_base:
+            search_base = f"{user_search_base},{config.LDAP_BASE_DN}"
+        else:
+            search_base = config.LDAP_BASE_DN
+
         svc_conn.search(
-            search_base=config.LDAP_BASE_DN,
+            search_base=search_base,
             search_filter=search_filter,
             search_scope=SUBTREE,
             attributes=["displayName", "mail", "memberOf", "sAMAccountName", "userPrincipalName"],
@@ -190,7 +210,7 @@ def authenticate_user(username: str, password: str) -> dict[str, Any]:
         "username": sam,
         "displayName": display_name,
         "email": mail,
-        "domain": domain,
+        "domain": domain or "",
         "groups": groups,
     }
 

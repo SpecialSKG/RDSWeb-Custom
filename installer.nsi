@@ -26,26 +26,24 @@ Unicode true
 ; =====================================================================
 ; MACROS REUTILIZABLES
 ; =====================================================================
-; Ejecución centralizada y segura de PowerShell con manejo de errores
 !macro ExecPowerShell ScriptPath Arguments
-    Push $R0 ; Protegemos el valor original de $R0
+    Push $R0
     DetailPrint "Ejecutando: ${ScriptPath}..."
     nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "${ScriptPath}" ${Arguments}'
-    Pop $R0  ; Obtenemos el Exit Code de PowerShell
+    Pop $R0
     ${If} $R0 != 0
         MessageBox MB_ICONSTOP|MB_OK "Fallo crítico al ejecutar: ${ScriptPath}$\r$\nCódigo de error: $R0.$\r$\nRevise los logs en la carpeta destino para más detalles."
         Abort "Instalación abortada por fallo en script externo."
     ${EndIf}
-    Pop $R0  ; Restauramos el valor original de $R0
+    Pop $R0
 !macroend
 
-; Ejecución silenciosa para procesos de desinstalación (no detiene el proceso si falla)
 !macro ExecPowerShellQuiet ScriptPath Arguments
     Push $R0
     DetailPrint "Desinstalando (Ejecutando script): ${ScriptPath}..."
     nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -File "${ScriptPath}" ${Arguments}'
-    Pop $R0  ; Descartamos el Exit Code
-    Pop $R0  ; Restauramos la pila
+    Pop $R0
+    Pop $R0
 !macroend
 
 ; =====================================================================
@@ -59,19 +57,27 @@ Var TxtHost
 Var ValHost
 Var ValCertThumbprint
 
-; -- Active Directory y Servidores --
-Var TxtAdLdap
+; -- Active Directory y Servidores LDAP --
+Var TxtLdapHost
+Var TxtLdapPort
 Var TxtAdBaseDn
-Var TxtAdDomain
-Var TxtAdUser
-Var TxtAdPass
+Var TxtLdapUser
+Var TxtLdapPass
+Var TxtLdapSearchBase
+Var TxtLdapSearchFilter
+Var TxtSvcUser
+Var TxtSvcPass
 Var TxtSrvRdcb
 
-Var ValAdLdap
+Var ValLdapHost
+Var ValLdapPort
 Var ValAdBaseDn
-Var ValAdDomain
-Var ValAdUser
-Var ValAdPass
+Var ValLdapUser
+Var ValLdapPass
+Var ValLdapSearchBase
+Var ValLdapSearchFilter
+Var ValSvcUser
+Var ValSvcPass
 Var ValSrvRdcb
 
 ; =====================================================================
@@ -94,7 +100,8 @@ ShowUninstDetails show
 
 ; -- Orden de Páginas --
 !insertmacro MUI_PAGE_WELCOME
-Page custom PageADCreate PageADLeave
+Page custom PageLDAPConnCreate PageLDAPConnLeave
+Page custom PageLDAPCredsCreate PageLDAPCredsLeave
 Page custom PageCertCreate PageCertLeave
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_DIRECTORY
@@ -110,77 +117,134 @@ Page custom PageCertCreate PageCertLeave
 !insertmacro MUI_LANGUAGE "English"
 
 ; =====================================================================
-; LÓGICA: PÁGINA DE ACTIVE DIRECTORY
+; LÓGICA: PÁGINA 1 - CONEXIÓN LDAP
 ; =====================================================================
-Function PageADCreate
-    !insertmacro MUI_HEADER_TEXT "Configuración de Active Directory y Servidores" "Configure la conexión LDAP al controlador de dominio y los servidores del portal."
+Function PageLDAPConnCreate
+    !insertmacro MUI_HEADER_TEXT "Configuración de Red LDAP" "Configure los parámetros de conexión al servidor de directorio."
     nsDialogs::Create 1018
     Pop $Dialog
     ${If} $Dialog == error
         Abort
     ${EndIf}
 
-    ; --- LDAP URL ---
-    ${NSD_CreateLabel} 0 0u 100% 10u "URL LDAP del Domain Controller:"
+    ; --- Host y Puerto LDAP ---
+    ${NSD_CreateLabel} 0 0u 70% 10u "Host LDAP (ej: SRV-DC.LAB-MH.LOCAL):"
     Pop $0
-    ${NSD_CreateText} 0 10u 100% 12u ""
-    Pop $TxtAdLdap
+    ${NSD_CreateText} 0 10u 70% 12u ""
+    Pop $TxtLdapHost
 
-    ${NSD_CreateLabel} 0 25u 100% 10u "Base DN del dominio:"
+    ${NSD_CreateLabel} 72% 0u 28% 10u "Puerto:"
     Pop $0
-    ${NSD_CreateText} 0 35u 100% 12u ""
+    ${NSD_CreateText} 72% 10u 28% 12u "389"
+    Pop $TxtLdapPort
+
+    ; --- Base DN ---
+    ${NSD_CreateLabel} 0 30u 100% 10u "Base DN (ej: DC=LAB-MH,DC=LOCAL):"
+    Pop $0
+    ${NSD_CreateText} 0 40u 100% 12u ""
     Pop $TxtAdBaseDn
 
-    ; --- Dominio y Credenciales ---
-    ${NSD_CreateLabel} 0 50u 100% 10u "Dominio NetBIOS:"
+    ; --- Search Base & Filter ---
+    ${NSD_CreateLabel} 0 60u 48% 10u "LDAP Search Base:"
     Pop $0
-    ${NSD_CreateText} 0 60u 100% 12u ""
-    Pop $TxtAdDomain
+    ${NSD_CreateText} 0 70u 48% 12u "cn=Users"
+    Pop $TxtLdapSearchBase
 
-    ${NSD_CreateLabel} 0 75u 48% 10u "Cuenta servicio (Usuario):"
+    ${NSD_CreateLabel} 52% 60u 48% 10u "LDAP Search Filter:"
     Pop $0
-    ${NSD_CreateText} 0 85u 48% 12u ""
-    Pop $TxtAdUser
+    ${NSD_CreateText} 52% 70u 48% 12u "(sAMAccountName={0})"
+    Pop $TxtLdapSearchFilter
 
-    ${NSD_CreateLabel} 52% 75u 48% 10u "Contraseña AD:"
-    Pop $0
-    ${NSD_CreatePassword} 52% 85u 48% 12u ""
-    Pop $TxtAdPass
+    ; Restaurar estado
+    ${If} $ValLdapHost != ""
+        ${NSD_SetText} $TxtLdapHost $ValLdapHost
+        ${NSD_SetText} $TxtLdapPort $ValLdapPort
+        ${NSD_SetText} $TxtAdBaseDn $ValAdBaseDn
+        ${NSD_SetText} $TxtLdapSearchBase $ValLdapSearchBase
+        ${NSD_SetText} $TxtLdapSearchFilter $ValLdapSearchFilter
+    ${EndIf}
 
-    ${NSD_CreateLabel} 0 105u 100% 10u "Servidor RD Connection Broker:"
+    nsDialogs::Show
+FunctionEnd
+
+Function PageLDAPConnLeave
+    ${NSD_GetText} $TxtLdapHost $ValLdapHost
+    ${NSD_GetText} $TxtLdapPort $ValLdapPort
+    ${NSD_GetText} $TxtAdBaseDn $ValAdBaseDn
+    ${NSD_GetText} $TxtLdapSearchBase $ValLdapSearchBase
+    ${NSD_GetText} $TxtLdapSearchFilter $ValLdapSearchFilter
+
+    ${If} $ValLdapHost == ""
+    ${OrIf} $ValLdapPort == ""
+    ${OrIf} $ValAdBaseDn == ""
+        MessageBox MB_ICONSTOP|MB_OK "Host, Puerto y Base DN son obligatorios."
+        Abort
+    ${EndIf}
+FunctionEnd
+
+; =====================================================================
+; LÓGICA: PÁGINA 2 - CREDENCIALES Y SERVICIOS
+; =====================================================================
+Function PageLDAPCredsCreate
+    !insertmacro MUI_HEADER_TEXT "Credenciales y Broker" "Ingrese las cuentas de servicio y el servidor de aplicaciones."
+    nsDialogs::Create 1018
+    Pop $Dialog
+    ${If} $Dialog == error
+        Abort
+    ${EndIf}
+
+    ; --- Credenciales LDAP ---
+    ${NSD_CreateLabel} 0 0u 48% 10u "LDAP User DN:"
     Pop $0
-    ${NSD_CreateText} 0 115u 100% 12u ""
+    ${NSD_CreateText} 0 10u 48% 12u ""
+    Pop $TxtLdapUser
+
+    ${NSD_CreateLabel} 52% 0u 48% 10u "LDAP Password:"
+    Pop $0
+    ${NSD_CreatePassword} 52% 10u 48% 12u ""
+    Pop $TxtLdapPass
+
+    ; --- Credenciales de Servicio (Windows) ---
+    ${NSD_CreateLabel} 0 30u 48% 10u "User Servicio (DOMINIO\Usuario):"
+    Pop $0
+    ${NSD_CreateText} 0 40u 48% 12u ""
+    Pop $TxtSvcUser
+
+    ${NSD_CreateLabel} 52% 30u 48% 10u "Contraseña de Servicio:"
+    Pop $0
+    ${NSD_CreatePassword} 52% 40u 48% 12u ""
+    Pop $TxtSvcPass
+
+    ; --- Connection Broker ---
+    ${NSD_CreateLabel} 0 60u 100% 10u "Servidor RD Connection Broker:"
+    Pop $0
+    ${NSD_CreateText} 0 70u 100% 12u ""
     Pop $TxtSrvRdcb
 
-    ; =================================================================
-    ; RESTAURAR ESTADO (Si el usuario presionó "Atrás")
-    ; =================================================================
-    ${If} $ValAdLdap != ""
-        ${NSD_SetText} $TxtAdLdap $ValAdLdap
-        ${NSD_SetText} $TxtAdBaseDn $ValAdBaseDn
-        ${NSD_SetText} $TxtAdDomain $ValAdDomain
-        ${NSD_SetText} $TxtAdUser $ValAdUser
-        ${NSD_SetText} $TxtAdPass $ValAdPass
+    ; Restaurar estado
+    ${If} $ValLdapUser != ""
+        ${NSD_SetText} $TxtLdapUser $ValLdapUser
+        ${NSD_SetText} $TxtLdapPass $ValLdapPass
+        ${NSD_SetText} $TxtSvcUser $ValSvcUser
+        ${NSD_SetText} $TxtSvcPass $ValSvcPass
         ${NSD_SetText} $TxtSrvRdcb $ValSrvRdcb
     ${EndIf}
 
     nsDialogs::Show
 FunctionEnd
 
-Function PageADLeave
-    ${NSD_GetText} $TxtAdLdap $ValAdLdap
-    ${NSD_GetText} $TxtAdBaseDn $ValAdBaseDn
-    ${NSD_GetText} $TxtAdDomain $ValAdDomain
-    ${NSD_GetText} $TxtAdUser $ValAdUser
-    ${NSD_GetText} $TxtAdPass $ValAdPass
+Function PageLDAPCredsLeave
+    ${NSD_GetText} $TxtLdapUser $ValLdapUser
+    ${NSD_GetText} $TxtLdapPass $ValLdapPass
+    ${NSD_GetText} $TxtSvcUser $ValSvcUser
+    ${NSD_GetText} $TxtSvcPass $ValSvcPass
     ${NSD_GetText} $TxtSrvRdcb $ValSrvRdcb
 
-    ${If} $ValAdLdap == ""
-    ${OrIf} $ValAdBaseDn == ""
-    ${OrIf} $ValAdDomain == ""
-    ${OrIf} $ValAdUser == ""
-    ${OrIf} $ValAdPass == ""
-        MessageBox MB_ICONSTOP|MB_OK "Todos los campos de Active Directory son obligatorios."
+    ${If} $ValLdapUser == ""
+    ${OrIf} $ValLdapPass == ""
+    ${OrIf} $ValSvcUser == ""
+    ${OrIf} $ValSvcPass == ""
+        MessageBox MB_ICONSTOP|MB_OK "Las credenciales LDAP y de Servicio son obligatorias."
         Abort
     ${EndIf}
 
@@ -189,21 +253,26 @@ Function PageADLeave
         Abort
     ${EndIf}
 
+    ; --- Validar formato estricto DOMINIO\Usuario ---
+    ${WordFind} "$ValSvcUser" "\" "#" $0
+    ${If} $0 != 2
+        MessageBox MB_ICONSTOP|MB_OK "El Usuario de Servicio debe tener estrictamente el formato DOMINIO\Usuario."
+        Abort
+    ${EndIf}
+
     ; =================================================================
-    ; MEJORA 1: VALIDAR CREDENCIALES (Método AccountManagement original)
+    ; VALIDAR CREDENCIALES CONTRA AD (Solo cuenta de servicio)
     ; =================================================================
     InitPluginsDir
     FileOpen $0 "$PLUGINSDIR\ad-pass.dat" w
-    FileWrite $0 $ValAdPass
+    FileWrite $0 $ValSvcPass
     FileClose $0
 
     FileOpen $0 "$PLUGINSDIR\test-ad.ps1" w
-    FileWrite $0 "param([string]$$domain, [string]$$user)$\r$\n"
+    FileWrite $0 "param([string]$$svcUser)$\r$\n"
     FileWrite $0 "$$pass = (Get-Content '$PLUGINSDIR\ad-pass.dat' -Raw).Trim()$\r$\n"
-    ; Extraemos solo el usuario si escribieron formato UPN o DOMINIO\Usuario
-    FileWrite $0 "if ($$user -match '\\') { $$user = ($$user -split '\\')[1] }$\r$\n"
-    FileWrite $0 "if ($$user -match '@') { $$user = ($$user -split '@')[0] }$\r$\n"
-    
+    FileWrite $0 "$$domain = ($$svcUser -split '\\')[0]$\r$\n"
+    FileWrite $0 "$$user = ($$svcUser -split '\\')[1]$\r$\n"
     FileWrite $0 "try {$\r$\n"
     FileWrite $0 "    Add-Type -AssemblyName System.DirectoryServices.AccountManagement$\r$\n"
     FileWrite $0 "    $$context = [System.DirectoryServices.AccountManagement.PrincipalContext]::new([System.DirectoryServices.AccountManagement.ContextType]::Domain, $$domain)$\r$\n"
@@ -216,20 +285,20 @@ Function PageADLeave
     System::Call 'user32::LoadCursor(i 0, i 32514) i .r0'
     System::Call 'user32::SetCursor(i r0)'
 
-    nsExec::Exec '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "$PLUGINSDIR\test-ad.ps1" "$ValAdDomain" "$ValAdUser"'
+    nsExec::Exec '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File "$PLUGINSDIR\test-ad.ps1" "$ValSvcUser"'
     Pop $0
     Delete "$PLUGINSDIR\ad-pass.dat"
     
     ${If} $0 == 1
-        MessageBox MB_ICONSTOP|MB_OK "La contraseña ingresada no es válida para la cuenta de servicio.$\r$\nPor favor, verifique e intente de nuevo."
+        MessageBox MB_ICONSTOP|MB_OK "La contraseña ingresada no es válida para la cuenta de servicio.\r\nPor favor, verifique e intente de nuevo."
         Abort
     ${ElseIf} $0 == 2
-        MessageBox MB_ICONEXCLAMATION|MB_OK "No se pudo contactar al Dominio NetBIOS proporcionado para validar la contraseña.$\r$\nVerifique que el dominio escrito sea correcto."
+        MessageBox MB_ICONEXCLAMATION|MB_OK "No se pudo contactar al Dominio para validar la contraseña.\r\nVerifique que el formato DOMINIO\Usuario sea correcto."
         Abort
     ${EndIf}
 
     ; =================================================================
-    ; PRE-CARGAR CERTIFICADOS 
+    ; PRE-CARGAR CERTIFICADOS (para la siguiente página)
     ; =================================================================
     FileOpen $0 "$PLUGINSDIR\enum-certs.ps1" w
     FileWrite $0 "$$certs = Get-ChildItem Cert:\LocalMachine\My | Where-Object { $$_.HasPrivateKey -and $$_.NotAfter -gt (Get-Date) }$\r$\n"
@@ -261,7 +330,6 @@ Function PageCertCreate
     ${NSD_CreateLabel} 0 50u 100% 12u "Nombre de host (FQDN):"
     Pop $0
 
-    ; Preservar el host si el usuario vuelve atrás, de lo contrario vacío
     StrCpy $2 ""
     ${If} $ValHost != ""
         StrCpy $2 $ValHost
@@ -270,7 +338,6 @@ Function PageCertCreate
     ${NSD_CreateText} 0 65u 100% 12u "$2"
     Pop $TxtHost
 
-    ; Cargar los certificados que ya pre-procesamos
     ClearErrors
     FileOpen $0 "$PLUGINSDIR\certs_list.txt" r
     ${If} $0 != ""
@@ -279,7 +346,6 @@ Function PageCertCreate
             IfErrors 0 +2
                 ${ExitDo}
             
-            ; Limpiar CRLF
             StrLen $2 $1
             IntOp $2 $2 - 2
             StrCpy $1 $1 $2
@@ -318,7 +384,6 @@ Function PageCertLeave
         Abort
     ${EndIf}
     
-    ; Leer el thumbprint correspondiente a la selección
     StrCpy $2 0
     ${Do}
         FileRead $1 $3
@@ -378,26 +443,29 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
         File "backend\node.exe"
     !endif
 
+    ; --- Extracción de Dominio y Usuario para NSSM ---
+    ${WordFind} "$ValSvcUser" "\" "-1" $R1 ; Obtiene el Usuario
+    ${WordFind} "$ValSvcUser" "\" "+1" $R2 ; Obtiene el Dominio
+
     ; --- Escritura de Configuración (.env) ---
     DetailPrint "Generando archivo de configuración .env..."
     
-    ; 1. Escribimos un archivo temporal
     FileOpen $0 "$INSTDIR\backend\.env.tmp" w
     FileWrite $0 "# ============================================================$\r$\n"
     FileWrite $0 "# RDWeb Portal - Generado por el Instalador$\r$\n"
     FileWrite $0 "# ============================================================$\r$\n$\r$\n"
     
-    ; Envolvemos los valores en comillas por seguridad
     FileWrite $0 "PORT=3000$\r$\nNODE_ENV=production$\r$\nJWT_SECRET=$\"$1$\"$\r$\nJWT_EXPIRES_IN=1h$\r$\n$\r$\n"
-    FileWrite $0 "LDAP_URL=$\"$ValAdLdap$\"$\r$\nLDAP_BASE_DN=$\"$ValAdBaseDn$\"$\r$\nAD_DOMAIN=$\"$ValAdDomain$\"$\r$\n"
-    FileWrite $0 "AD_SERVICE_USER=$\"$ValAdUser$\"$\r$\nAD_SERVICE_PASS=$\"$ValAdPass$\"$\r$\nRDCB_SERVER=$\"$ValSrvRdcb$\"$\r$\n"
+    FileWrite $0 "LDAP_HOST=$\"$ValLdapHost$\"$\r$\nLDAP_PORT=$\"$ValLdapPort$\"$\r$\nLDAP_BASE_DN=$\"$ValAdBaseDn$\"$\r$\n"
+    FileWrite $0 "LDAP_USER_DN=$\"$ValLdapUser$\"$\r$\nLDAP_PASSWORD=$\"$ValLdapPass$\"$\r$\n"
+    FileWrite $0 "LDAP_USER_SEARCH_BASE=$\"$ValLdapSearchBase$\"$\r$\nLDAP_USER_SEARCH_FILTER=$\"$ValLdapSearchFilter$\"$\r$\n$\r$\n"
+    FileWrite $0 "RDCB_SERVER=$\"$ValSrvRdcb$\"$\r$\n"
     FileWrite $0 "CERT_THUMBPRINT=$\"$ValCertThumbprint$\"$\r$\n$\r$\n"
     FileWrite $0 "RDP_GATEWAY_CREDENTIAL_SOURCE=0$\r$\nRDP_PROMPT_CREDENTIAL_ONCE=true$\r$\n"
     FileWrite $0 "RDP_PROMPT_FOR_CREDENTIALS_ON_CLIENT=true$\r$\nRDP_USE_MULTIMON=true$\r$\n"
     FileWrite $0 "RDP_SPAN_MONITORS=true$\r$\nSIMULATION_MODE=false$\r$\n"
     FileClose $0
 
-    ; 2. PowerShell lee el archivo (Get-Content detecta la codificación correcta) y lo pasa a UTF-8 puro
     FileOpen $0 "$PLUGINSDIR\convert-env.ps1" w
     FileWrite $0 "$$content = Get-Content -Path '$INSTDIR\backend\.env.tmp' -Raw$\r$\n"
     FileWrite $0 "[System.IO.File]::WriteAllText('$INSTDIR\backend\.env', $$content, (New-Object System.Text.UTF8Encoding($$false)))$\r$\n"
@@ -411,15 +479,10 @@ Section "Backend ${BackendType} (API + Servicio Windows)" SEC_BACKEND
     CreateDirectory "$INSTDIR\backend\logs"
     
     FileOpen $0 "$TEMP\svcpwd.dat" w
-    FileWrite $0 $ValAdPass
+    FileWrite $0 $ValSvcPass
     FileClose $0
 
-    ; Limpiar UPN: Extraer solo el nombre de usuario (ej: svc-rdweb)
-    StrCpy $R1 $ValAdUser
-    ${WordFind} "$R1" "\" "-1" $R1
-    ${WordFind} "$R1" "@" "+1" $R1
-
-    !insertmacro ExecPowerShell "$TEMP\setup-backend-service.ps1" '-BackendDir "$INSTDIR\backend" -ServiceName "${ServiceName}" -BackendType "${BackendType}" -ServiceUser "$R1" -ServiceDomain "$ValAdDomain" -CredentialFile "$TEMP\svcpwd.dat" -LogFile "$INSTDIR\backend\logs\install-service.log"'
+    !insertmacro ExecPowerShell "$TEMP\setup-backend-service.ps1" '-BackendDir "$INSTDIR\backend" -ServiceName "${ServiceName}" -BackendType "${BackendType}" -ServiceUser "$R1" -ServiceDomain "$R2" -CredentialFile "$TEMP\svcpwd.dat" -LogFile "$INSTDIR\backend\logs\install-service.log"'
     Delete "$TEMP\svcpwd.dat"
 SectionEnd
 
@@ -438,7 +501,6 @@ Section "Frontend Angular (archivos estáticos IIS)" SEC_FRONTEND
 
     WriteUninstaller "$INSTDIR\uninstall.exe"
     
-    ; Registro en Agregar/Quitar Programas
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MyAppName}" "DisplayName" "${MyAppName}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MyAppName}" "DisplayIcon" "$INSTDIR\assets\installer\app-icon.ico"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MyAppName}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""

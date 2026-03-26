@@ -121,8 +121,8 @@
 }
 
 .list {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 20px;
 }
 
@@ -132,8 +132,8 @@
   align-items: center;
   gap: 6px;
 
-  max-width: 120px;
-  max-height: 150px;
+  width: 120px;
+  height: 150px;
   padding: 12px;
 
   color: inherit;

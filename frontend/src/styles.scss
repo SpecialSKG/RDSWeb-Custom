@@ -132,11 +132,13 @@ body {
     margin: 0;
     font-size: clamp(2.4rem, 3vw, 3.2rem);
     font-weight: 800;
+    line-height: 1.05;
     letter-spacing: -0.05em;
     text-wrap: balance;
     text-shadow: 2px 2px 0 rgba(71, 104, 154, 0.22);
   }
   p {
+    margin: 12px auto 0;
     color: #54627a;
     font-size: clamp(1rem, 1.05vw, 1.08rem);
   }
@@ -165,6 +167,8 @@ body {
     outline: none;
     border-radius: 16px;
     border: 1px solid rgba(40, 54, 82, 0.12);
+
+    font-family: "Inter Variable", sans-serif;
     font-size: 1rem;
 
     transition:

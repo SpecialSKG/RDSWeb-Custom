@@ -57,11 +57,38 @@ JWT_EXPIRES_IN_RAW: str = os.getenv("JWT_EXPIRES_IN", "8h")
 JWT_EXPIRES_IN_SECONDS: int = _parse_expires_in(JWT_EXPIRES_IN_RAW)
 
 # LDAP / Active Directory
-LDAP_URL: str = os.getenv("LDAP_URL", "ldap://dc01.lab-mh.local")
+LDAP_HOST: str = os.getenv("LDAP_HOST", "dc01.lab-mh.local")
+LDAP_PORT: int = _to_int(os.getenv("LDAP_PORT"), 389)
 LDAP_BASE_DN: str = os.getenv("LDAP_BASE_DN", "DC=lab-mh,DC=local")
-AD_DOMAIN: str = os.getenv("AD_DOMAIN", "LAB-MH")
-AD_SERVICE_USER: str = os.getenv("AD_SERVICE_USER", "svc-rdweb@lab-mh.local")
-AD_SERVICE_PASS: str = os.getenv("AD_SERVICE_PASS", "")
+
+# Cuenta de servicio para binds (nuevas vars). Para compatibilidad, caer
+# a las antiguas si existen en el .env.
+LDAP_USER_DN: str = os.getenv("LDAP_USER_DN", os.getenv("AD_SERVICE_USER", "svc-rdweb@lab-mh.local"))
+LDAP_PASSWORD: str = os.getenv("LDAP_PASSWORD", os.getenv("AD_SERVICE_PASS", ""))
+
+# Opciones para búsqueda de usuarios
+LDAP_USER_SEARCH_BASE: str = os.getenv("LDAP_USER_SEARCH_BASE", "")
+LDAP_USER_SEARCH_FILTER: str = os.getenv("LDAP_USER_SEARCH_FILTER", "(sAMAccountName={0})")
+
+
+def _dn_to_domain(dn: str) -> str:
+    """Extrae un dominio legible desde un DN tipo 'DC=lab-mh,DC=local' → 'LAB-MH'."""
+    if not dn:
+        return ""
+    parts = [p.strip() for p in dn.split(",") if p.strip().upper().startswith("DC=")]
+    if not parts:
+        return ""
+    # Usar el primer DC como nombre corto de dominio
+    first = parts[0].split("=", 1)[1]
+    return first.replace(".", "-").upper()
+
+# AD_DOMAIN: mantener para compatibilidad; si no se especifica, derivar
+# del LDAP_BASE_DN. Puede ser vacío si se quiere un backend agnóstico.
+AD_DOMAIN: str = os.getenv("AD_DOMAIN", _dn_to_domain(LDAP_BASE_DN))
+
+# Mantener las antiguas claves por compatibilidad con módulos que aún las usan
+AD_SERVICE_USER: str = os.getenv("AD_SERVICE_USER", LDAP_USER_DN)
+AD_SERVICE_PASS: str = os.getenv("AD_SERVICE_PASS", LDAP_PASSWORD)
 
 # RD Connection Broker
 RDCB_SERVER: str = os.getenv("RDCB_SERVER", "SRV-APPS.LAB-MH.LOCAL")

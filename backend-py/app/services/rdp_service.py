@@ -75,7 +75,7 @@ def sign_rdp_content(rdp_content: str) -> bytes:
 
 
 def generate_remote_app_rdp(app: AppResource, user: UserPayload, is_private: bool = True) -> bytes:
-    domain = user.domain or config.AD_DOMAIN
+    domain = (user.domain or config.AD_DOMAIN or "")
     session_timeout = 240 if is_private else 20  # noqa: F841 — kept for parity
     full_address = app.remoteServer or config.RDCB_SERVER
     collection_name = _normalize_collection_name(app.collectionName)
@@ -117,8 +117,11 @@ def generate_remote_app_rdp(app: AppResource, user: UserPayload, is_private: boo
 
 
 def generate_desktop_rdp(desktop: AppResource, user: UserPayload) -> bytes:
-    domain = user.domain or config.AD_DOMAIN
-    username = f"{domain}\\{user.username}"
+    domain = (user.domain or config.AD_DOMAIN or "")
+    if domain:
+        username = f"{domain}\\{user.username}"
+    else:
+        username = user.username
     full_address = desktop.remoteServer or config.RDCB_SERVER
 
     lines: list[str] = [

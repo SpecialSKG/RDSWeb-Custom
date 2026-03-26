@@ -54,8 +54,8 @@ def _normalize_group_name(value: Any) -> str:
 
 def _get_user_permission_set(user: UserPayload) -> set[str]:
     principals: list[str] = list(user.groups)
-    username = user.username.strip()
-    domain = (user.domain or config.AD_DOMAIN).strip()
+    username = (user.username or "").strip()
+    domain = (user.domain or config.AD_DOMAIN or "").strip()
     email = (user.email or "").strip()
 
     if username:

@@ -4,8 +4,7 @@
 
 .DESCRIPTION
     Este script automatiza la instalación de un servicio backend (Node.js o Python) 
-    utilizando NSSM (Non-Sucking Service Manager). Valida credenciales contra 
-    Active Directory, configura el entorno de ejecución, establece políticas de 
+    utilizando NSSM. Configura el entorno de ejecución, establece políticas de 
     rotación de logs y gestiona la limpieza de archivos sensibles.
     
     Diseñado para ser invocado por Inno Setup o flujos de CI/CD. No ejecutar manualmente
@@ -55,8 +54,11 @@ param(
     [ValidateSet('express', 'python')]
     [string]$BackendType = 'express',
 
-    [string]$ServiceUser = '',
-    [string]$ServiceDomain = ''
+    [Parameter(Mandatory = $true)]
+    [string]$ServiceUser,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ServiceDomain
 )
 
 $ErrorActionPreference = 'Stop'
@@ -84,77 +86,6 @@ function Invoke-NssmCommand {
     }
 }
 
-function Test-ActiveDirectoryCredential {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)][string]$Username,
-        [Parameter(Mandatory = $true)][SecureString]$SecurePassword,
-        [Parameter(Mandatory = $true)][string]$DomainDNS
-    )
-    
-    try {
-        Add-Type -AssemblyName System.DirectoryServices.AccountManagement
-        $context = [System.DirectoryServices.AccountManagement.PrincipalContext]::new(
-            [System.DirectoryServices.AccountManagement.ContextType]::Domain,
-            $DomainDNS
-        )
-        
-        $cleanUsername = if ($Username -match '\\') { $Username.Split('\\')[-1] } else { $Username }
-        $plainTextPass = (New-Object System.Management.Automation.PSCredential("dummy", $SecurePassword)).GetNetworkCredential().Password
-        
-        if (-not $context.ValidateCredentials($cleanUsername, $plainTextPass)) {
-            throw "La contraseña proporcionada no es válida para el usuario $Username."
-        }
-        Write-Information "Credenciales de AD verificadas correctamente."
-    }
-    catch [System.DirectoryServices.AccountManagement.PrincipalException] {
-        Write-Warning "No se pudo verificar contra el dominio: $($_.Exception.Message)."
-    }
-    finally {
-        $plainTextPass = $null 
-    }
-}
-
-function Format-ServiceAccountName {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)][string]$User,
-        [string]$Domain
-    )
-    
-    if ($User -match '\\') { 
-        return $User 
-    }
-    
-    if ($User -match '@') {
-        try {
-            Add-Type -AssemblyName System.DirectoryServices
-            $searcher = [System.DirectoryServices.DirectorySearcher]::new()
-            $searcher.Filter = "(&(objectClass=user)(userPrincipalName=$User))"
-            $result = $searcher.FindOne()
-            
-            if ($result) {
-                $samAccount = $result.Properties['samaccountname'][0]
-                if ($Domain) { 
-                    return "$Domain\$samAccount" 
-                } else { 
-                    return $samAccount 
-                }
-            }
-        }
-        catch { 
-            Write-Warning "Fallo al resolver UPN a SamAccountName." 
-        }
-        return $User
-    }
-    
-    if ($Domain) { 
-        return "$Domain\$User" 
-    } else { 
-        return $User 
-    }
-}
-
 # =====================================================================
 # Flujo Principal
 # =====================================================================
@@ -168,26 +99,14 @@ try {
         throw "Archivo de credenciales no encontrado en la ruta: $($CredentialFile.FullName)"
     }
     
-    $rawText = (Get-Content -Path $CredentialFile.FullName -Raw).Trim()
-    $secureServicePassword = ConvertTo-SecureString -String $rawText -AsPlainText -Force
-    $rawText = $null 
+    # Extraemos la contraseña en texto plano para NSSM
+    $tempPlainTextPass = (Get-Content -Path $CredentialFile.FullName -Raw).Trim()
     
+    # Destruimos el archivo inmediatamente por seguridad
     Remove-Item -Path $CredentialFile.FullName -Force -ErrorAction SilentlyContinue
     Write-Verbose "Archivo temporal de credenciales eliminado exitosamente."
 
     # ── 2. Resolución de Rutas y Entorno ─────────────────────────────
-    $effectiveUser = if ([string]::IsNullOrWhiteSpace($ServiceUser)) { "$env:USERDOMAIN\$env:USERNAME" } else { $ServiceUser }
-    
-    if ([string]::IsNullOrWhiteSpace($ServiceDomain)) {
-        try { 
-            $effectiveDomain = ([System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()).NetBiosName 
-        } catch { 
-            $effectiveDomain = $env:USERDOMAIN 
-        }
-    } else { 
-        $effectiveDomain = $ServiceDomain 
-    }
-
     $nssmExe = Join-Path -Path $BackendDir -ChildPath "nssm.exe"
     $logDir = Join-Path -Path $BackendDir -ChildPath "logs"
 
@@ -205,22 +124,19 @@ try {
         $envExtra = "NODE_ENV=production"
     }
 
-    # ── 3. Validación contra Active Directory ────────────────────────
-    Write-Information "Validando credenciales para $effectiveUser..."
-    Test-ActiveDirectoryCredential -Username $effectiveUser -SecurePassword $secureServicePassword -DomainDNS $env:USERDNSDOMAIN
-
-    # ── 4. Limpieza de Servicio Previo ───────────────────────────────
+    # ── 3. Limpieza de Servicio Previo ───────────────────────────────
     if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+        Write-Information "Deteniendo y eliminando servicio existente..."
         Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2
         Invoke-NssmCommand -NssmPath $nssmExe -Arguments @('remove', $ServiceName, 'confirm')
     }
 
-    # ── 5. Instalación y Configuración del Nuevo Servicio ────────────
+    # ── 4. Instalación y Configuración del Nuevo Servicio ────────────
     Write-Information "Instalando servicio '$ServiceName' con backend '$BackendType'..."
-    $nssmAccountName = Format-ServiceAccountName -User $effectiveUser -Domain $effectiveDomain
-
-    $tempPlainTextPass = (New-Object System.Management.Automation.PSCredential("dummy", $secureServicePassword)).GetNetworkCredential().Password
+    
+    # NSIS nos pasa el Dominio y el Usuario por separado, los concatenamos para NSSM
+    $nssmAccountName = "$ServiceDomain\$ServiceUser"
 
     $nssmConfigurations = @(
         @('install', $ServiceName, $appPath, $appArgs),
@@ -236,9 +152,10 @@ try {
         Invoke-NssmCommand -NssmPath $nssmExe -Arguments $validArgs
     }
     
+    # Limpiamos la variable de la memoria
     $tempPlainTextPass = $null
 
-    # ── 6. Configuración de Logs (Rotación) ──────────────────────────
+    # ── 5. Configuración de Logs (Rotación) ──────────────────────────
     if (-not (Test-Path -Path $logDir)) { 
         New-Item -ItemType Directory -Force -Path $logDir | Out-Null 
     }
@@ -256,9 +173,9 @@ try {
         Invoke-NssmCommand -NssmPath $nssmExe -Arguments $logArgs 
     }
 
-    # ── 7. Arranque del Servicio ─────────────────────────────────────
+    # ── 6. Arranque del Servicio ─────────────────────────────────────
     Start-Service -Name $ServiceName
-    Write-Information "Servicio '$ServiceName' configurado e iniciado exitosamente."
+    Write-Information "Servicio '$ServiceName' configurado e iniciado exitosamente bajo la cuenta $nssmAccountName."
 }
 catch {
     Write-Error "Fallo crítico en la instalación: $($_.Exception.Message)"
@@ -266,9 +183,7 @@ catch {
     exit 1
 }
 finally {
-    # ── 8. Limpieza Segura Final ─────────────────────────────────────
-    $secureServicePassword = $null
-    $rawText = $null
+    # ── 7. Limpieza Segura Final ─────────────────────────────────────
     $tempPlainTextPass = $null
 }
 
